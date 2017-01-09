@@ -17,6 +17,7 @@ def read_dataset(data_dir):
     if not os.path.exists(pickle_filepath):
         utils.maybe_download_and_extract(data_dir, DATA_URL, is_zipfile=True)
         SceneParsing_folder = os.path.splitext(DATA_URL.split("/")[-1])[0]
+        #print("scene_parsing: ", SceneParsing_folder)
         result = create_image_lists(os.path.join(data_dir, SceneParsing_folder))
         print ("Pickling ...")
         with open(pickle_filepath, 'wb') as f:
@@ -34,6 +35,7 @@ def read_dataset(data_dir):
 
 
 def create_image_lists(image_dir):
+    print("image_dir:", image_dir)
     if not gfile.Exists(image_dir):
         print("Image directory '" + image_dir + "' not found.")
         return None
@@ -50,8 +52,10 @@ def create_image_lists(image_dir):
             print('No files found')
         else:
             for f in file_list:
-                filename = os.path.splitext(f.split("/")[-1])[0]
+                filename = os.path.splitext(f.split("\\")[-1])[0]
+                #print("filename:", filename)
                 annotation_file = os.path.join(image_dir, "annotations", directory, filename + '.png')
+                #print("annot_filename:", annotation_file)
                 if os.path.exists(annotation_file):
                     record = {'image': f, 'annotation': annotation_file, 'filename': filename}
                     image_list[directory].append(record)
