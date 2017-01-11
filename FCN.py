@@ -9,19 +9,22 @@ import BatchDatsetReader as dataset
 from six.moves import xrange
 
 FLAGS = tf.flags.FLAGS
-tf.flags.DEFINE_integer("batch_size", "2", "batch size for training")
-tf.flags.DEFINE_string("logs_dir", "C:/tmp/FCN/logs/", "path to logs directory")
-tf.flags.DEFINE_string("data_dir", "C:/tmp/FCN/Data_zoo/MIT_SceneParsing/", "path to dataset")
+tf.flags.DEFINE_integer("batch_size", "5", "batch size for training")
+tf.flags.DEFINE_string("logs_dir", "F:\Projects\FCN_tensorflow\data/logs/", "path to logs directory")
+tf.flags.DEFINE_string("data_dir", "F:\Projects\FCN_tensorflow\data/Data_zoo/Weeds/", "path to dataset")
 tf.flags.DEFINE_float("learning_rate", "1e-4", "Learning rate for Adam Optimizer")
-tf.flags.DEFINE_string("model_dir", "C:/tmp/FCN/Model_zoo/", "Path to vgg model mat")
+tf.flags.DEFINE_string("model_dir", "F:\Projects\FCN_tensorflow\data/Model_zoo/", "Path to vgg model mat")
 tf.flags.DEFINE_bool('debug', "False", "Debug mode: True/ False")
 tf.flags.DEFINE_string('mode', "train", "Mode train/ test/ visualize")
 
 MODEL_URL = 'http://www.vlfeat.org/matconvnet/models/beta16/imagenet-vgg-verydeep-19.mat'
 
 MAX_ITERATION = int(1e5 + 1)
-NUM_OF_CLASSESS = 151
-IMAGE_SIZE = 224
+#NUM_OF_CLASSESS = 151
+#IMAGE_SIZE = 224
+
+NUM_OF_CLASSESS = 6
+IMAGE_SIZE = 500
 
 
 def vgg_net(weights, image):
@@ -169,7 +172,7 @@ def main(argv=None):
     print(len(valid_records))
 
     print("Setting up dataset reader")
-    image_options = {'resize': True, 'resize_size': IMAGE_SIZE}
+    image_options = {'resize': False, 'resize_size': IMAGE_SIZE}
     if FLAGS.mode == 'train':
         train_dataset_reader = dataset.BatchDatset(train_records, image_options)
     validation_dataset_reader = dataset.BatchDatset(valid_records, image_options)

@@ -12,11 +12,12 @@ DATA_URL = 'http://sceneparsing.csail.mit.edu/data/ADEChallengeData2016.zip'
 
 
 def read_dataset(data_dir):
-    pickle_filename = "MITSceneParsing.pickle"
+    #pickle_filename = "MITSceneParsing.pickle"
+    pickle_filename = "Weeds.pickle"
     pickle_filepath = os.path.join(data_dir, pickle_filename)
     if not os.path.exists(pickle_filepath):
-        utils.maybe_download_and_extract(data_dir, DATA_URL, is_zipfile=True)
-        SceneParsing_folder = os.path.splitext(DATA_URL.split("/")[-1])[0]
+        #utils.maybe_download_and_extract(data_dir, DATA_URL, is_zipfile=True)
+        SceneParsing_folder = "data" #os.path.splitext(DATA_URL.split("/")[-1])[0]
         #print("scene_parsing: ", SceneParsing_folder)
         result = create_image_lists(os.path.join(data_dir, SceneParsing_folder))
         print ("Pickling ...")
