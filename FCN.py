@@ -8,23 +8,21 @@ import datetime
 import BatchDatsetReader as dataset
 from six.moves import xrange
 
+# D:\Projects\FCN_tensorflow\data/logs/
 FLAGS = tf.flags.FLAGS
-tf.flags.DEFINE_integer("batch_size", "5", "batch size for training")
-tf.flags.DEFINE_string("logs_dir", "F:\Projects\FCN_tensorflow\data/logs/", "path to logs directory")
-tf.flags.DEFINE_string("data_dir", "F:\Projects\FCN_tensorflow\data/Data_zoo/Weeds/", "path to dataset")
+tf.flags.DEFINE_integer("batch_size", "2", "batch size for training")
+tf.flags.DEFINE_string("logs_dir", "D:/tmp/FCN/", "path to logs directory")
+tf.flags.DEFINE_string("data_dir", "D:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/", "path to dataset")
 tf.flags.DEFINE_float("learning_rate", "1e-4", "Learning rate for Adam Optimizer")
-tf.flags.DEFINE_string("model_dir", "F:\Projects\FCN_tensorflow\data/Model_zoo/", "Path to vgg model mat")
-tf.flags.DEFINE_bool('debug', "False", "Debug mode: True/ False")
+tf.flags.DEFINE_string("model_dir", "D:/Projects/FCN_tensorflow/data/Model_zoo/", "Path to vgg model mat")
+tf.flags.DEFINE_bool('debug', "True", "Debug mode: True/ False")
 tf.flags.DEFINE_string('mode', "train", "Mode train/ test/ visualize")
 
 MODEL_URL = 'http://www.vlfeat.org/matconvnet/models/beta16/imagenet-vgg-verydeep-19.mat'
 
 MAX_ITERATION = int(1e5 + 1)
-#NUM_OF_CLASSESS = 151
-#IMAGE_SIZE = 224
-
-NUM_OF_CLASSESS = 6
-IMAGE_SIZE = 500
+NUM_OF_CLASSESS = 256
+IMAGE_SIZE = 224
 
 
 def vgg_net(weights, image):
@@ -155,7 +153,7 @@ def main(argv=None):
     loss = tf.reduce_mean((tf.nn.sparse_softmax_cross_entropy_with_logits(logits,
                                                                           tf.squeeze(annotation, squeeze_dims=[3]),
                                                                           name="entropy")))
-    tf.scalar_summary("entropy", loss)
+    tf.scalar_summary("training_loss", loss)
 
     trainable_var = tf.trainable_variables()
     if FLAGS.debug:
@@ -166,13 +164,15 @@ def main(argv=None):
     print("Setting up summary op...")
     summary_op = tf.merge_all_summaries()
 
+    val_loss_sum_op = tf.scalar_summary("validation_loss", loss)
+
     print("Setting up image reader...")
     train_records, valid_records = scene_parsing.read_dataset(FLAGS.data_dir)
     print(len(train_records))
     print(len(valid_records))
 
     print("Setting up dataset reader")
-    image_options = {'resize': False, 'resize_size': IMAGE_SIZE}
+    image_options = {'resize': True, 'resize_size': IMAGE_SIZE}
     if FLAGS.mode == 'train':
         train_dataset_reader = dataset.BatchDatset(train_records, image_options)
     validation_dataset_reader = dataset.BatchDatset(valid_records, image_options)
@@ -203,8 +203,10 @@ def main(argv=None):
 
             if itr % 500 == 0:
                 valid_images, valid_annotations = validation_dataset_reader.next_batch(FLAGS.batch_size)
-                valid_loss = sess.run(loss, feed_dict={image: valid_images, annotation: valid_annotations,
-                                                       keep_probability: 1.0})
+                valid_loss, val_summary_str = sess.run([loss, val_loss_sum_op],
+                      feed_dict={image: valid_images, annotation: valid_annotations,
+                      keep_probability: 1.0})
+                summary_writer.add_summary(val_summary_str, itr)
                 print("%s ---> Validation_loss: %g" % (datetime.datetime.now(), valid_loss))
                 saver.save(sess, FLAGS.logs_dir + "model.ckpt", itr)
 
