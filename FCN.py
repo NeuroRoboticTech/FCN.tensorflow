@@ -21,12 +21,29 @@ tf.flags.DEFINE_string('mode', "train", "Mode train/ test/ visualize")
 MODEL_URL = 'http://www.vlfeat.org/matconvnet/models/beta16/imagenet-vgg-verydeep-19.mat'
 
 
-class NetworkFCN:
+class Segment:
 
   max_iterations = int(1e5 + 1)
   num_of_classes = 50
   image_width = 672
   image_height = 380
+  keep_probability = None
+  image = None
+  annotation = None
+  pred_annotation = None
+  logits = None
+  loss = None
+  trainable_var = None
+  train_op = None
+  summary_op = None
+  val_loss_sum_op = None
+  train_records = None
+  valid_records = None
+  sess = None
+  train_dataset_reader = None
+  validation_dataset_reader = None
+  saver = None
+  summary_writer = None
 
   def vgg_net(self, weights, image):
     layers = (
@@ -139,84 +156,91 @@ class NetworkFCN:
       # print(len(var_list))
       for grad, var in grads:
         utils.add_gradient_summary(grad, var)
+
     return optimizer.apply_gradients(grads)
 
-  def run_train(self):
-    keep_probability = tf.placeholder(tf.float32, name="keep_probabilty")
-    image = tf.placeholder(tf.float32,
+  def init_network(self):
+    self.keep_probability = tf.placeholder(tf.float32, name="keep_probabilty")
+    self.image = tf.placeholder(tf.float32,
                shape=[None, self.image_height, self.image_width, 3], name="input_image")
-    annotation = tf.placeholder(tf.int32,
+    self.annotation = tf.placeholder(tf.int32,
                 shape=[None, self.image_height, self.image_width, 1], name="annotation")
 
-    pred_annotation, logits = self.inference(image, keep_probability)
-    tf.image_summary("input_image", image, max_images=2)
-    tf.image_summary("ground_truth", tf.cast(annotation, tf.uint8), max_images=2)
-    tf.image_summary("pred_annotation", tf.cast(pred_annotation, tf.uint8), max_images=2)
-    loss = tf.reduce_mean((
-      tf.nn.sparse_softmax_cross_entropy_with_logits(logits,
-                                                     tf.squeeze(annotation, squeeze_dims=[3]),
+    self.pred_annotation, self.logits = self.inference(self.image, self.keep_probability)
+    tf.image_summary("input_image", self.image, max_images=2)
+    tf.image_summary("ground_truth", tf.cast(self.annotation, tf.uint8), max_images=2)
+    tf.image_summary("pred_annotation", tf.cast(self.pred_annotation, tf.uint8), max_images=2)
+    self.loss = tf.reduce_mean((
+      tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits,
+                                                     tf.squeeze(self.annotation, squeeze_dims=[3]),
                                                      name="entropy")))
-    tf.scalar_summary("training_loss", loss)
+    tf.scalar_summary("training_loss", self.loss)
 
-    trainable_var = tf.trainable_variables()
+    self.trainable_var = tf.trainable_variables()
     if FLAGS.debug:
-        for var in trainable_var:
+        for var in self.trainable_var:
             utils.add_to_regularization_and_summary(var)
-    train_op = self.train(loss, trainable_var)
+        self.train_op = self.train(self.loss, self.trainable_var)
 
     print("Setting up summary op...")
-    summary_op = tf.merge_all_summaries()
+    self.summary_op = tf.merge_all_summaries()
 
-    val_loss_sum_op = tf.scalar_summary("validation_loss", loss)
+    self.val_loss_sum_op = tf.scalar_summary("validation_loss", self.loss)
 
     print("Setting up image reader...")
-    train_records, valid_records = scene_parsing.read_dataset(FLAGS.data_dir)
-    print(len(train_records))
-    print(len(valid_records))
+    self.train_records, self.valid_records = scene_parsing.read_dataset(FLAGS.data_dir)
+    print(len(self.train_records))
+    print(len(self.valid_records))
 
     print("Setting up dataset reader")
     image_options = {'resize': True, 'resize_height': self.image_height, 'resize_width': self.image_width}
     if FLAGS.mode == 'train':
-        train_dataset_reader = dataset.BatchDatset(train_records, image_options)
-    validation_dataset_reader = dataset.BatchDatset(valid_records, image_options)
+        self.train_dataset_reader = dataset.BatchDatset(self.train_records, image_options)
+    self.validation_dataset_reader = dataset.BatchDatset(self.valid_records, image_options)
 
-    sess = tf.Session()
+    self.sess = tf.Session()
 
     print("Setting up Saver...")
-    saver = tf.train.Saver()
-    summary_writer = tf.train.SummaryWriter(FLAGS.logs_dir, sess.graph)
+    self.saver = tf.train.Saver()
+    self.summary_writer = tf.train.SummaryWriter(FLAGS.logs_dir, self.sess.graph)
 
-    sess.run(tf.initialize_all_variables())
+    self.sess.run(tf.initialize_all_variables())
     ckpt = tf.train.get_checkpoint_state(FLAGS.logs_dir)
     if ckpt and ckpt.model_checkpoint_path:
-        saver.restore(sess, ckpt.model_checkpoint_path)
-        print("Model restored...")
+      self.saver.restore(self.sess, ckpt.model_checkpoint_path)
+      print("Model restored...")
+
+  def train_network(self):
 
     if FLAGS.mode == "train":
       for itr in xrange(self.max_iterations):
-        train_images, train_annotations = train_dataset_reader.next_batch(FLAGS.batch_size)
-        feed_dict = {image: train_images, annotation: train_annotations, keep_probability: 0.85}
+        train_images, train_annotations = self.train_dataset_reader.next_batch(FLAGS.batch_size)
+        feed_dict = {self.image: train_images,
+                     self.annotation: train_annotations,
+                     self.keep_probability: 0.85}
 
-        sess.run(train_op, feed_dict=feed_dict)
+        self.sess.run(self.train_op, feed_dict=feed_dict)
 
         if itr % 10 == 0:
-          train_loss, summary_str = sess.run([loss, summary_op], feed_dict=feed_dict)
+          train_loss, summary_str = self.sess.run([self.loss, self.summary_op], feed_dict=feed_dict)
           print("Step: %d, Train_loss:%g" % (itr, train_loss))
-          summary_writer.add_summary(summary_str, itr)
+          self.summary_writer.add_summary(summary_str, itr)
 
         if itr % 500 == 0:
-          valid_images, valid_annotations = validation_dataset_reader.next_batch(FLAGS.batch_size)
-          valid_loss, val_summary_str = sess.run([loss, val_loss_sum_op],
-                feed_dict={image: valid_images, annotation: valid_annotations,
-                keep_probability: 1.0})
-          summary_writer.add_summary(val_summary_str, itr)
+          valid_images, valid_annotations = self.validation_dataset_reader.next_batch(FLAGS.batch_size)
+          valid_loss, val_summary_str = self.sess.run([self.loss, self.val_loss_sum_op],
+                feed_dict={self.image: valid_images, self.annotation: valid_annotations,
+                           self.keep_probability: 1.0})
+          self.summary_writer.add_summary(val_summary_str, itr)
           print("%s ---> Validation_loss: %g" % (datetime.datetime.now(), valid_loss))
-          saver.save(sess, FLAGS.logs_dir + "model.ckpt", itr)
+          # self.saver.save(self.sess, FLAGS.logs_dir + "model.ckpt", itr)
 
     elif FLAGS.mode == "visualize":
-      valid_images, valid_annotations = validation_dataset_reader.get_random_batch(FLAGS.batch_size)
-      pred = sess.run(pred_annotation, feed_dict={image: valid_images, annotation: valid_annotations,
-                                                  keep_probability: 1.0})
+      valid_images, valid_annotations = self.validation_dataset_reader.get_random_batch(FLAGS.batch_size)
+      pred = self.sess.run(self.pred_annotation,
+                           feed_dict={self.image: valid_images,
+                                      self.annotation: valid_annotations,
+                                      self.keep_probability: 1.0})
       valid_annotations = np.squeeze(valid_annotations, axis=3)
       pred = np.squeeze(pred, axis=3)
 

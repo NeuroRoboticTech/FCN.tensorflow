@@ -4,8 +4,9 @@ import tensorflow as tf
 
 
 def main(argv=None):
-  fcn = FCN.NetworkFCN()
-  fcn.run_train()
+  segment = FCN.Segment()
+  segment.init_network()
+  segment.train_network()
 
 if __name__ == "__main__":
     tf.app.run()
