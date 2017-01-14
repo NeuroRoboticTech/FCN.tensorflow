@@ -1,0 +1,37 @@
+ToDO List
+1. How much GPU memory is the FCN using while running
+2. If I reduce the num_classes can I have more batches?
+4. Need to setup an input feeder that takes random parts of large images.
+5. Need to improve training code to handle larger batch sizes
+6. Need to improve validation code to handle larger batch sizes than training.
+7. Need to change visualize code to work on whole folder of test/validation folders
+8. Need to change visualize code to work without a label.
+9. Modify main GPU to be in TDD mode.
+10. Modify training util to blank out portions of labels that are white on the training image.
+11. Will the NN of that image size run on the TX1?
+
+
+
+3. What is the largest image size I can use to train?
+When I went up to 700x700 with a batch size of 1 it failed. 
+When I did 650x650, b1 it worked. Memory was this:
+    FB Memory Usage
+        Total                       : 12288 MiB
+        Used                        : 10472 MiB
+        Free                        : 1816 MiB
+    BAR1 Memory Usage
+        Total                       : 256 MiB
+        Used                        : 229 MiB
+        Free                        : 27 MiB
+
+When I tried it once and was moving windows around it failed. So I think I really 
+need to set the TDD settings on that GPU to prevent graphics memory from interfering.
+
+Trying with 670x670 failed.
+So it looks like 650x650 = 422,500 pixels is the max I can do. 
+672x380 = 255,360
+1280x720 = 921,600
+
+So unless switching to TDD frees up enough memory to jump up quite a bit it looks
+like my training images will be stuck at the 672x380 limit.
+       
