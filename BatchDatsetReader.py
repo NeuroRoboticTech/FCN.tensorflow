@@ -3,6 +3,24 @@ Code ideas from https://github.com/Newmu/dcgan and tensorflow mnist dataset read
 """
 import numpy as np
 import scipy.misc as misc
+import cv2
+
+
+def rotate_img(img, angle, center=None, scale=1.0):
+  # grab the dimensions of the image
+  (h, w) = img.shape[:2]
+
+  # if the center is None, initialize it as the center of
+  # the image
+  if center is None:
+    center = (w / 2, h / 2)
+
+  # perform the rotation
+  M = cv2.getRotationMatrix2D(center, angle, scale)
+  rotated = cv2.warpAffine(img, M, (w, h))
+
+  # return the rotated image
+  return rotated
 
 
 class BatchDatset:
@@ -45,8 +63,8 @@ class BatchDatset:
             image = np.array([image for i in range(3)])
 
         if self.image_options.get("resize", False) and self.image_options["resize"]:
-            resize_height = int(self.image_options["resize_height"])
-            resize_width = int(self.image_options["resize_width"])
+            resize_height = int(self.image_options["image_height"])
+            resize_width = int(self.image_options["image_width"])
             resize_image = misc.imresize(image,
                                          [resize_height, resize_width], interp='nearest')
         else:
@@ -60,25 +78,88 @@ class BatchDatset:
     def reset_batch_offset(self, offset=0):
         self.batch_offset = offset
 
-    def next_batch(self, batch_size):
-        start = self.batch_offset
-        self.batch_offset += batch_size
-        if self.batch_offset > self.images.shape[0]:
-            # Finished epoch
-            self.epochs_completed += 1
-            print("****************** Epochs completed: " + str(self.epochs_completed) + "******************")
-            # Shuffle the data
-            perm = np.arange(self.images.shape[0])
-            np.random.shuffle(perm)
-            self.images = self.images[perm]
-            self.annotations = self.annotations[perm]
-            # Start next epoch
-            start = 0
-            self.batch_offset = batch_size
+    def _random_transform(self, img, annot):
+      final_height = int(self.image_options["image_height"])
+      final_width = int(self.image_options["image_width"])
 
-        end = self.batch_offset
-        return self.images[start:end], self.annotations[start:end]
+      # Flip the image around the vertical axis randomly
+      if np.random.randint(0, 100) > 50:
+        new_img = cv2.flip(img, 1)
+        new_annot = cv2.flip(annot, 1)
+      else:
+        new_img = img
+        new_annot = annot
+
+      # Rotate the image if needed. Use a normal distribution
+      # and truncate it to an integer to get the rotation degrees
+      # to use.
+      rotate_deg = int(np.random.normal(0, 8))
+      if rotate_deg != 0:
+        new_img = rotate_img(new_img, rotate_deg)
+        new_annot = rotate_img(new_annot, rotate_deg)
+
+      # Find out how many multiples the final image is compared
+      # to the input image.
+      img_width_multiple = int(img.shape[1] / final_width)
+
+      # Randomly choose a size to use
+      size_idx = np.random.randint(3, img_width_multiple)
+      cut_width = int(size_idx * final_width)
+      cut_height = int(cut_width * (final_height/final_width))
+
+      # Randomly choose the pixel for the top-left corner where
+      # we will begin the cut.
+      area_width = img.shape[1] - cut_width
+      area_height = img.shape[0] - cut_height
+      cut_x = np.random.randint(0, area_width-1)
+      cut_y = np.random.randint(0, area_height-1)
+
+      # Cut out a section of the large image to resize to the
+      # smaller section.
+      cut_img = new_img[cut_y:(cut_y+cut_height), cut_x:(cut_x+cut_width)]
+      cut_annot = new_annot[cut_y:(cut_y+cut_height), cut_x:(cut_x+cut_width)]
+
+      cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/cut.jpg', cut_img)
+
+      # Randomly alter the contrast and brightness of the cut image
+      # use normal distribution around 1 for contrast multiplier
+      contrast = np.random.normal(1.0, 0.02)
+      brightness = np.random.randint(-10, 10)
+
+      cut_img = (contrast * cut_img) + brightness
+
+      cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/cut_bright.jpg', cut_img)
+
+      return img, annot
+
+    def next_batch(self, batch_size):
+      start = self.batch_offset
+      self.batch_offset += batch_size
+      if self.batch_offset > 0: #self.images.shape[0]:
+        # Finished epoch
+        self.epochs_completed += 1
+        print("****************** Epochs completed: " + str(self.epochs_completed) + "******************")
+        # Shuffle the data
+        perm = np.arange(self.images.shape[0])
+        np.random.shuffle(perm)
+        self.images = self.images[perm]
+        self.annotations = self.annotations[perm]
+        # Start next epoch
+        start = 0
+        self.batch_offset = batch_size
+
+      end = self.batch_offset
+      img_batch = []
+      annot_batch = []
+      for idx in range(end-start):
+        img = self.images[start+idx]
+        annot = self.annotations[start+idx]
+        img_trans, annot_trans = self._random_transform(img, annot)
+        img_batch.append(img_trans)
+        annot_batch.append(annot_trans)
+
+      return img_batch, annot_batch
 
     def get_random_batch(self, batch_size):
-        indexes = np.random.randint(0, self.images.shape[0], size=[batch_size]).tolist()
-        return self.images[indexes], self.annotations[indexes]
+      indexes = np.random.randint(0, self.images.shape[0], size=[batch_size]).tolist()
+      return self.images[indexes], self.annotations[indexes]

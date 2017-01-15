@@ -12,7 +12,7 @@ from six.moves import xrange
 FLAGS = tf.flags.FLAGS
 tf.flags.DEFINE_integer("batch_size", "1", "batch size for training")
 tf.flags.DEFINE_string("logs_dir", "F:/tmp/FCN/", "path to logs directory")
-tf.flags.DEFINE_string("data_dir", "F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds_500/", "path to dataset")
+tf.flags.DEFINE_string("data_dir", "F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/", "path to dataset")
 tf.flags.DEFINE_float("learning_rate", "1e-4", "Learning rate for Adam Optimizer")
 tf.flags.DEFINE_string("model_dir", "F:/Projects/FCN_tensorflow/data/Model_zoo/", "Path to vgg model mat")
 tf.flags.DEFINE_bool('debug', "True", "Debug mode: True/ False")
@@ -193,23 +193,25 @@ class Segment:
     print(len(self.valid_records))
 
     print("Setting up dataset reader")
-    image_options = {'resize': True, 'resize_height': self.image_height, 'resize_width': self.image_width}
+    image_options = {'resize': False,
+                     'image_height': self.image_height,
+                     'image_width': self.image_width}
     if FLAGS.mode == 'train':
         self.train_dataset_reader = dataset.BatchDatset(self.train_records, image_options)
     self.validation_dataset_reader = dataset.BatchDatset(self.valid_records, image_options)
 
     self.sess = tf.Session()
 
-    print("Setting up Saver...")
-    self.saver = tf.train.Saver()
-    self.summary_writer =  tf.summary.FileWriter(FLAGS.logs_dir, self.sess.graph)
+    #print("Setting up Saver...")
+    #self.saver = tf.train.Saver()
+    #self.summary_writer =  tf.summary.FileWriter(FLAGS.logs_dir, self.sess.graph)
 
-    self.sess.run(tf.global_variables_initializer())
+    #self.sess.run(tf.global_variables_initializer())
 
-    ckpt = tf.train.get_checkpoint_state(FLAGS.logs_dir)
-    if ckpt and ckpt.model_checkpoint_path:
-      self.saver.restore(self.sess, ckpt.model_checkpoint_path)
-      print("Model restored...")
+    #ckpt = tf.train.get_checkpoint_state(FLAGS.logs_dir)
+    #if ckpt and ckpt.model_checkpoint_path:
+    #  self.saver.restore(self.sess, ckpt.model_checkpoint_path)
+    #  print("Model restored...")
 
   def train_network(self):
 
