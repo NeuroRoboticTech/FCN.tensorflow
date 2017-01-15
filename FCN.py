@@ -167,14 +167,14 @@ class Segment:
                 shape=[None, self.image_height, self.image_width, 1], name="annotation")
 
     self.pred_annotation, self.logits = self.inference(self.image, self.keep_probability)
-    tf.image_summary("input_image", self.image, max_images=2)
-    tf.image_summary("ground_truth", tf.cast(self.annotation, tf.uint8), max_images=2)
-    tf.image_summary("pred_annotation", tf.cast(self.pred_annotation, tf.uint8), max_images=2)
+    tf.summary.image("input_image", self.image, max_outputs=2)
+    tf.summary.image("ground_truth", tf.cast(self.annotation, tf.uint8), max_outputs=2)
+    tf.summary.image("pred_annotation", tf.cast(self.pred_annotation, tf.uint8), max_outputs=2)
     self.loss = tf.reduce_mean((
       tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits,
                                                      tf.squeeze(self.annotation, squeeze_dims=[3]),
                                                      name="entropy")))
-    tf.scalar_summary("training_loss", self.loss)
+    tf.summary.scalar("training_loss", self.loss)
 
     self.trainable_var = tf.trainable_variables()
     if FLAGS.debug:
@@ -183,9 +183,9 @@ class Segment:
         self.train_op = self.train(self.loss, self.trainable_var)
 
     print("Setting up summary op...")
-    self.summary_op = tf.merge_all_summaries()
+    self.summary_op = tf.summary.merge_all()
 
-    self.val_loss_sum_op = tf.scalar_summary("validation_loss", self.loss)
+    self.val_loss_sum_op = tf.summary.scalar("validation_loss", self.loss)
 
     print("Setting up image reader...")
     self.train_records, self.valid_records = scene_parsing.read_dataset(FLAGS.data_dir)
@@ -202,9 +202,10 @@ class Segment:
 
     print("Setting up Saver...")
     self.saver = tf.train.Saver()
-    self.summary_writer = tf.train.SummaryWriter(FLAGS.logs_dir, self.sess.graph)
+    self.summary_writer =  tf.summary.FileWriter(FLAGS.logs_dir, self.sess.graph)
 
-    self.sess.run(tf.initialize_all_variables())
+    self.sess.run(tf.global_variables_initializer())
+
     ckpt = tf.train.get_checkpoint_state(FLAGS.logs_dir)
     if ckpt and ckpt.model_checkpoint_path:
       self.saver.restore(self.sess, ckpt.model_checkpoint_path)
@@ -212,41 +213,39 @@ class Segment:
 
   def train_network(self):
 
-    if FLAGS.mode == "train":
-      for itr in xrange(self.max_iterations):
-        train_images, train_annotations = self.train_dataset_reader.next_batch(FLAGS.batch_size)
-        feed_dict = {self.image: train_images,
-                     self.annotation: train_annotations,
-                     self.keep_probability: 0.85}
+    for itr in xrange(self.max_iterations):
+      train_images, train_annotations = self.train_dataset_reader.next_batch(FLAGS.batch_size)
+      feed_dict = {self.image: train_images,
+                   self.annotation: train_annotations,
+                   self.keep_probability: 0.85}
 
-        self.sess.run(self.train_op, feed_dict=feed_dict)
+      self.sess.run(self.train_op, feed_dict=feed_dict)
 
-        if itr % 10 == 0:
-          train_loss, summary_str = self.sess.run([self.loss, self.summary_op], feed_dict=feed_dict)
-          print("Step: %d, Train_loss:%g" % (itr, train_loss))
-          self.summary_writer.add_summary(summary_str, itr)
+      if itr % 10 == 0:
+        train_loss, summary_str = self.sess.run([self.loss, self.summary_op], feed_dict=feed_dict)
+        print("Step: %d, Train_loss:%g" % (itr, train_loss))
+        self.summary_writer.add_summary(summary_str, itr)
 
-        if itr % 500 == 0:
-          valid_images, valid_annotations = self.validation_dataset_reader.next_batch(FLAGS.batch_size)
-          valid_loss, val_summary_str = self.sess.run([self.loss, self.val_loss_sum_op],
-                feed_dict={self.image: valid_images, self.annotation: valid_annotations,
-                           self.keep_probability: 1.0})
-          self.summary_writer.add_summary(val_summary_str, itr)
-          print("%s ---> Validation_loss: %g" % (datetime.datetime.now(), valid_loss))
-          # self.saver.save(self.sess, FLAGS.logs_dir + "model.ckpt", itr)
+      if itr % 500 == 0:
+        valid_images, valid_annotations = self.validation_dataset_reader.next_batch(FLAGS.batch_size)
+        valid_loss, val_summary_str = self.sess.run([self.loss, self.val_loss_sum_op],
+              feed_dict={self.image: valid_images, self.annotation: valid_annotations,
+                         self.keep_probability: 1.0})
+        self.summary_writer.add_summary(val_summary_str, itr)
+        print("%s ---> Validation_loss: %g" % (datetime.datetime.now(), valid_loss))
+        self.saver.save(self.sess, FLAGS.logs_dir + "model.ckpt", itr)
 
-    elif FLAGS.mode == "visualize":
-      valid_images, valid_annotations = self.validation_dataset_reader.get_random_batch(FLAGS.batch_size)
-      pred = self.sess.run(self.pred_annotation,
-                           feed_dict={self.image: valid_images,
-                                      self.annotation: valid_annotations,
-                                      self.keep_probability: 1.0})
-      valid_annotations = np.squeeze(valid_annotations, axis=3)
-      pred = np.squeeze(pred, axis=3)
+  def visualize_batch(self):
+    valid_images, valid_annotations = self.validation_dataset_reader.get_random_batch(FLAGS.batch_size)
+    pred = self.sess.run(self.pred_annotation,
+                         feed_dict={self.image: valid_images,
+                                    self.annotation: valid_annotations,
+                                    self.keep_probability: 1.0})
+    valid_annotations = np.squeeze(valid_annotations, axis=3)
+    pred = np.squeeze(pred, axis=3)
 
-      for itr in range(FLAGS.batch_size):
-        utils.save_image(valid_images[itr].astype(np.uint8), FLAGS.logs_dir, name="inp_" + str(5+itr))
-        utils.save_image(valid_annotations[itr].astype(np.uint8), FLAGS.logs_dir, name="gt_" + str(5+itr))
-        utils.save_image(pred[itr].astype(np.uint8), FLAGS.logs_dir, name="pred_" + str(5+itr))
-        print("Saved image: %d" % itr)
-
+    for itr in range(FLAGS.batch_size):
+      utils.save_image(valid_images[itr].astype(np.uint8), FLAGS.logs_dir, name="inp_" + str(5 + itr))
+      utils.save_image(valid_annotations[itr].astype(np.uint8), FLAGS.logs_dir, name="gt_" + str(5 + itr))
+      utils.save_image(pred[itr].astype(np.uint8), FLAGS.logs_dir, name="pred_" + str(5 + itr))
+      print("Saved image: %d" % itr)
