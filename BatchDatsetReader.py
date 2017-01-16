@@ -4,7 +4,9 @@ Code ideas from https://github.com/Newmu/dcgan and tensorflow mnist dataset read
 import numpy as np
 import scipy.misc as misc
 import cv2
-
+import threading
+import time
+import random
 
 def rotate_img(img, angle, center=None, scale=1.0):
   # grab the dimensions of the image
@@ -23,17 +25,23 @@ def rotate_img(img, angle, center=None, scale=1.0):
   return rotated
 
 
-class BatchDatset:
+class BatchDatset (threading.Thread):
     files = []
     images = []
     annotations = []
     image_options = {}
     batch_offset = 0
+    batch_size = 0
+    start_idx = 0
+    end_idx = 0
     epochs_completed = 0
     final_height = 0
     final_width = 0
+    load_next_images = True
+    exit_thread = False
+    lock = threading.Lock()
 
-    def __init__(self, records_list, image_options={}):
+    def __init__(self, records_list, batch_size, image_options={}):
         """
         Intialize a generic file reader with batching for list of files
         :param records_list: list of file records to read -
@@ -46,21 +54,29 @@ class BatchDatset:
         """
         print("Initializing Batch Dataset Reader...")
         print(image_options)
+
+        threading.Thread.__init__(self)
+
         self.files = records_list
         self.image_options = image_options
-        self._read_images()
+        self.batch_size = batch_size
+        self.start_idx = 0
+        self.batch_offset = self.batch_size
+        self.end_idx = self.batch_offset
 
     def _read_images(self):
         self.__channels = True
-        self.images = np.array([self._transform(filename['image']) for filename in self.files])
+        self.images = np.array([self._transform(filename['image'])
+                                for filename in self.files[self.start_idx:self.end_idx]])
         self.__channels = False
-        self.annotations = np.array(
-            [np.expand_dims(self._transform(filename['annotation']), axis=3) for filename in self.files])
-        print (self.images.shape)
-        print (self.annotations.shape)
+        self.annotations = np.array([self._transform(filename['annotation'])
+                                     for filename in self.files[self.start_idx:self.end_idx]])
+        # print (self.images.shape)
+        # print (self.annotations.shape)
 
     def _transform(self, filename):
         image = misc.imread(filename)
+        print("Read image: ", filename)
         if self.__channels and len(image.shape) < 3:  # make sure images are of shape(h,w,3)
             image = np.array([image for i in range(3)])
 
@@ -141,9 +157,25 @@ class BatchDatset:
 
       return final_img, final_annot
 
-    def next_batch_old(self, batch_size):
+    def run(self):
+      print("Starting BatchDataSet Thread")
+      self._load_images_thread()
+      print("Exiting BatchDataSet Thread")
+
+    def _load_images_thread(self):
+
+      while not self.exit_thread:
+        if self.load_next_images:
+          with self.lock:
+            self._read_images()
+            self.load_next_images = False
+
+        else:
+          time.sleep(0.002)
+
+    def next_batch_old(self):
       start = self.batch_offset
-      self.batch_offset += batch_size
+      self.batch_offset += self.batch_size
       if self.batch_offset > self.images.shape[0]:
         # Finished epoch
         self.epochs_completed += 1
@@ -155,42 +187,59 @@ class BatchDatset:
         self.annotations = self.annotations[perm]
         # Start next epoch
         start = 0
-        self.batch_offset = batch_size
+        self.batch_offset = self.batch_size
 
       end = self.batch_offset
       return self.images[start:end], self.annotations[start:end]
 
-    def next_batch_random_mod(self, batch_size):
-      start = self.batch_offset
-      self.batch_offset += batch_size
-      if self.batch_offset > 0: #self.images.shape[0]:
-        # Finished epoch
-        self.epochs_completed += 1
-        print("****************** Epochs completed: " + str(self.epochs_completed) + "******************")
-        # Shuffle the data
-        perm = np.arange(self.images.shape[0])
-        np.random.shuffle(perm)
-        self.images = self.images[perm]
-        self.annotations = self.annotations[perm]
-        # Start next epoch
-        start = 0
-        self.batch_offset = batch_size
+    def wait_for_images(self):
+      while len(self.images) < self.batch_size:
+        while self.load_next_images:
+          time.sleep(0.002)
 
-      end = self.batch_offset
-      img_batch_list = []
-      annot_batch_list = []
-      for idx in range(end-start):
-        img = self.images[start+idx]
-        annot = self.annotations[start+idx]
-        img_trans, annot_trans = self._random_transform(img, annot)
-        img_batch_list.append(img_trans)
-        annot_batch_list.append(annot_trans)
+        if len(self.images) < self.batch_size:
+          self.load_next_images = True
 
-      img_batch = np.array(img_batch_list)
-      annot_batch = np.array(annot_batch_list).reshape(
-        (len(annot_batch_list), self.final_height, self.final_width, 1))
+    def next_batch_random_mod(self):
 
-      return img_batch, annot_batch
+      # Wait for the images to be loaded if they are not already in place
+      self.wait_for_images()
+
+      with self.lock:
+        self.start_idx = self.batch_offset
+        self.batch_offset += self.batch_size
+        if self.batch_offset > len(self.files):
+          # Finished epoch
+          self.epochs_completed += 1
+          print("****************** Epochs completed: " + str(self.epochs_completed) + "******************")
+          # Shuffle the data
+          random.shuffle(self.files)
+          # Start next epoch
+          self.start_idx = 0
+          self.batch_offset = self.batch_size
+
+        self.end_idx = self.batch_offset
+
+        img_batch_list = []
+        annot_batch_list = []
+
+        idx = 0
+        for img in self.images:
+          annot = self.annotations[idx]
+          img_trans, annot_trans = self._random_transform(img, annot)
+          img_batch_list.append(img_trans)
+          annot_batch_list.append(annot_trans)
+          idx += 1
+
+        img_batch = np.array(img_batch_list)
+        annot_batch = np.array(annot_batch_list).reshape(
+          (len(annot_batch_list), self.final_height, self.final_width, 1))
+
+        # now kick off thread to load next batch of images.
+        print("processed next batch.")
+        self.load_next_images = True
+
+        return img_batch, annot_batch
 
     def get_random_batch(self, batch_size):
       indexes = np.random.randint(0, self.images.shape[0], size=[batch_size]).tolist()

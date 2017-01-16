@@ -7,6 +7,7 @@ import read_MITSceneParsingData as scene_parsing
 import datetime
 import BatchDatsetReader as dataset
 from six.moves import xrange
+import time
 
 # D:\Projects\FCN_tensorflow\data/logs/
 FLAGS = tf.flags.FLAGS
@@ -198,31 +199,39 @@ class Segment:
                      'image_height': self.image_height,
                      'image_width': self.image_width}
     if FLAGS.mode == 'train':
-        self.train_dataset_reader = dataset.BatchDatset(self.train_records, image_options)
-    self.validation_dataset_reader = dataset.BatchDatset(self.valid_records, image_options)
+        self.train_dataset_reader = dataset.BatchDatset(self.train_records, FLAGS.batch_size, image_options)
+        self.train_dataset_reader.start()
+        # Wait for first images to load
+        self.train_dataset_reader.wait_for_images()
+
+    self.validation_dataset_reader = dataset.BatchDatset(self.valid_records, FLAGS.batch_size, image_options)
+    self.validation_dataset_reader.start()
+    # Wait for first images to load
+    self.validation_dataset_reader.wait_for_images()
 
     self.sess = tf.Session()
 
-    print("Setting up Saver...")
-    self.saver = tf.train.Saver()
-    self.summary_writer =  tf.summary.FileWriter(FLAGS.logs_dir, self.sess.graph)
+    # print("Setting up Saver...")
+    # self.saver = tf.train.Saver()
+    # self.summary_writer =  tf.summary.FileWriter(FLAGS.logs_dir, self.sess.graph)
 
     self.sess.run(tf.global_variables_initializer())
 
-    ckpt = tf.train.get_checkpoint_state(FLAGS.logs_dir)
-    if ckpt and ckpt.model_checkpoint_path:
-      self.saver.restore(self.sess, ckpt.model_checkpoint_path)
-      print("Model restored...")
+    # ckpt = tf.train.get_checkpoint_state(FLAGS.logs_dir)
+    # if ckpt and ckpt.model_checkpoint_path:
+    #   self.saver.restore(self.sess, ckpt.model_checkpoint_path)
+    #   print("Model restored...")
 
   def train_network(self):
 
     for itr in xrange(self.max_iterations):
-      train_images, train_annotations = self.train_dataset_reader.next_batch_random_mod(FLAGS.batch_size)
+      train_images, train_annotations = self.train_dataset_reader.next_batch_random_mod()
       feed_dict = {self.image: train_images,
                    self.annotation: train_annotations,
                    self.keep_probability: 0.85}
 
       self.sess.run(self.train_op, feed_dict=feed_dict)
+      # time.sleep(1) # Simulate a run
 
       if itr % 10 == 0:
         train_loss, summary_str = self.sess.run([self.loss, self.summary_op], feed_dict=feed_dict)
@@ -230,7 +239,7 @@ class Segment:
         self.summary_writer.add_summary(summary_str, itr)
 
       if itr % 500 == 0:
-        valid_images, valid_annotations = self.validation_dataset_reader.next_batch_random_mod(FLAGS.batch_size)
+        valid_images, valid_annotations = self.validation_dataset_reader.next_batch_random_mod()
         valid_loss, val_summary_str = self.sess.run([self.loss, self.val_loss_sum_op],
               feed_dict={self.image: valid_images, self.annotation: valid_annotations,
                          self.keep_probability: 1.0})
