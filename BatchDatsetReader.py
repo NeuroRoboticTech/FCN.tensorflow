@@ -163,7 +163,7 @@ class BatchDatset:
     def next_batch_random_mod(self, batch_size):
       start = self.batch_offset
       self.batch_offset += batch_size
-      if self.batch_offset > 0: #self.images.shape[0]:
+      if self.batch_offset > self.images.shape[0]:
         # Finished epoch
         self.epochs_completed += 1
         print("****************** Epochs completed: " + str(self.epochs_completed) + "******************")
