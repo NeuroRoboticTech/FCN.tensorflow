@@ -30,6 +30,8 @@ class BatchDatset:
     image_options = {}
     batch_offset = 0
     epochs_completed = 0
+    final_height = 0
+    final_width = 0
 
     def __init__(self, records_list, image_options={}):
         """
@@ -79,8 +81,8 @@ class BatchDatset:
         self.batch_offset = offset
 
     def _random_transform(self, img, annot):
-      final_height = int(self.image_options["image_height"])
-      final_width = int(self.image_options["image_width"])
+      self.final_height = int(self.image_options["image_height"])
+      self.final_width = int(self.image_options["image_width"])
 
       # Flip the image around the vertical axis randomly
       if np.random.randint(0, 100) > 50:
@@ -100,12 +102,12 @@ class BatchDatset:
 
       # Find out how many multiples the final image is compared
       # to the input image.
-      img_width_multiple = int(img.shape[1] / final_width)
+      img_width_multiple = int(img.shape[1] / self.final_width)
 
       # Randomly choose a size to use
       size_idx = np.random.randint(3, img_width_multiple)
-      cut_width = int(size_idx * final_width)
-      cut_height = int(cut_width * (final_height/final_width))
+      cut_width = int(size_idx * self.final_width)
+      cut_height = int(cut_width * (self.final_height/self.final_width))
 
       # Randomly choose the pixel for the top-left corner where
       # we will begin the cut.
@@ -119,7 +121,7 @@ class BatchDatset:
       cut_img = new_img[cut_y:(cut_y+cut_height), cut_x:(cut_x+cut_width)]
       cut_annot = new_annot[cut_y:(cut_y+cut_height), cut_x:(cut_x+cut_width)]
 
-      cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/cut.jpg', cut_img)
+      #cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/cut.jpg', cut_img)
 
       # Randomly alter the contrast and brightness of the cut image
       # use normal distribution around 1 for contrast multiplier
@@ -128,11 +130,37 @@ class BatchDatset:
 
       cut_img = (contrast * cut_img) + brightness
 
-      cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/cut_bright.jpg', cut_img)
+      #cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/cut_bright.jpg', cut_img)
 
-      return img, annot
+      # Last, resize the cut images to match the final image size.
+      final_img = cv2.resize(cut_img, (self.final_width, self.final_height), interpolation=cv2.INTER_AREA)
+      final_annot = cut_annot[::size_idx, ::size_idx]
 
-    def next_batch(self, batch_size):
+      # cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_img.jpg', final_img)
+      # cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_mask.jpg', final_annot)
+
+      return final_img, final_annot
+
+    def next_batch_old(self, batch_size):
+      start = self.batch_offset
+      self.batch_offset += batch_size
+      if self.batch_offset > self.images.shape[0]:
+        # Finished epoch
+        self.epochs_completed += 1
+        print("****************** Epochs completed: " + str(self.epochs_completed) + "******************")
+        # Shuffle the data
+        perm = np.arange(self.images.shape[0])
+        np.random.shuffle(perm)
+        self.images = self.images[perm]
+        self.annotations = self.annotations[perm]
+        # Start next epoch
+        start = 0
+        self.batch_offset = batch_size
+
+      end = self.batch_offset
+      return self.images[start:end], self.annotations[start:end]
+
+    def next_batch_random_mod(self, batch_size):
       start = self.batch_offset
       self.batch_offset += batch_size
       if self.batch_offset > 0: #self.images.shape[0]:
@@ -149,14 +177,18 @@ class BatchDatset:
         self.batch_offset = batch_size
 
       end = self.batch_offset
-      img_batch = []
-      annot_batch = []
+      img_batch_list = []
+      annot_batch_list = []
       for idx in range(end-start):
         img = self.images[start+idx]
         annot = self.annotations[start+idx]
         img_trans, annot_trans = self._random_transform(img, annot)
-        img_batch.append(img_trans)
-        annot_batch.append(annot_trans)
+        img_batch_list.append(img_trans)
+        annot_batch_list.append(annot_trans)
+
+      img_batch = np.array(img_batch_list)
+      annot_batch = np.array(annot_batch_list).reshape(
+        (len(annot_batch_list), self.final_height, self.final_width, 1))
 
       return img_batch, annot_batch
 

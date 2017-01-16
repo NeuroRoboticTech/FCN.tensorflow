@@ -25,6 +25,7 @@ class Segment:
 
   max_iterations = int(1e5 + 1)
   num_of_classes = 50
+  image_resize = False
   image_width = 672
   image_height = 380
   keep_probability = None
@@ -193,7 +194,7 @@ class Segment:
     print(len(self.valid_records))
 
     print("Setting up dataset reader")
-    image_options = {'resize': False,
+    image_options = {'resize': self.image_resize,
                      'image_height': self.image_height,
                      'image_width': self.image_width}
     if FLAGS.mode == 'train':
@@ -202,21 +203,21 @@ class Segment:
 
     self.sess = tf.Session()
 
-    #print("Setting up Saver...")
-    #self.saver = tf.train.Saver()
-    #self.summary_writer =  tf.summary.FileWriter(FLAGS.logs_dir, self.sess.graph)
+    print("Setting up Saver...")
+    self.saver = tf.train.Saver()
+    self.summary_writer =  tf.summary.FileWriter(FLAGS.logs_dir, self.sess.graph)
 
-    #self.sess.run(tf.global_variables_initializer())
+    self.sess.run(tf.global_variables_initializer())
 
-    #ckpt = tf.train.get_checkpoint_state(FLAGS.logs_dir)
-    #if ckpt and ckpt.model_checkpoint_path:
-    #  self.saver.restore(self.sess, ckpt.model_checkpoint_path)
-    #  print("Model restored...")
+    ckpt = tf.train.get_checkpoint_state(FLAGS.logs_dir)
+    if ckpt and ckpt.model_checkpoint_path:
+      self.saver.restore(self.sess, ckpt.model_checkpoint_path)
+      print("Model restored...")
 
   def train_network(self):
 
     for itr in xrange(self.max_iterations):
-      train_images, train_annotations = self.train_dataset_reader.next_batch(FLAGS.batch_size)
+      train_images, train_annotations = self.train_dataset_reader.next_batch_random_mod(FLAGS.batch_size)
       feed_dict = {self.image: train_images,
                    self.annotation: train_annotations,
                    self.keep_probability: 0.85}
@@ -229,7 +230,7 @@ class Segment:
         self.summary_writer.add_summary(summary_str, itr)
 
       if itr % 500 == 0:
-        valid_images, valid_annotations = self.validation_dataset_reader.next_batch(FLAGS.batch_size)
+        valid_images, valid_annotations = self.validation_dataset_reader.next_batch_random_mod(FLAGS.batch_size)
         valid_loss, val_summary_str = self.sess.run([self.loss, self.val_loss_sum_op],
               feed_dict={self.image: valid_images, self.annotation: valid_annotations,
                          self.keep_probability: 1.0})
