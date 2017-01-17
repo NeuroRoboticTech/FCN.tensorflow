@@ -28,6 +28,7 @@ def rotate_img(img, angle, center=None, scale=1.0):
 class BatchDatset (threading.Thread):
     files = []
     images = []
+    image_files = []
     annotations = []
     image_options = {}
     batch_offset = 0
@@ -63,9 +64,12 @@ class BatchDatset (threading.Thread):
         self.start_idx = 0
         self.batch_offset = self.batch_size
         self.end_idx = self.batch_offset
+        self.final_height = int(self.image_options["image_height"])
+        self.final_width = int(self.image_options["image_width"])
 
     def _read_images(self):
         self.__channels = True
+        self.image_files = self.files[self.start_idx:self.end_idx]
         self.images = np.array([self._transform(filename['image'])
                                 for filename in self.files[self.start_idx:self.end_idx]])
         self.__channels = False
@@ -76,7 +80,7 @@ class BatchDatset (threading.Thread):
 
     def _transform(self, filename):
         image = misc.imread(filename)
-        print("Read image: ", filename)
+        # print("Read image: ", filename)
         if self.__channels and len(image.shape) < 3:  # make sure images are of shape(h,w,3)
             image = np.array([image for i in range(3)])
 
@@ -97,9 +101,6 @@ class BatchDatset (threading.Thread):
         self.batch_offset = offset
 
     def _random_transform(self, img, annot):
-      self.final_height = int(self.image_options["image_height"])
-      self.final_width = int(self.image_options["image_width"])
-
       # Flip the image around the vertical axis randomly
       if np.random.randint(0, 100) > 50:
         new_img = cv2.flip(img, 1)
@@ -152,8 +153,8 @@ class BatchDatset (threading.Thread):
       final_img = cv2.resize(cut_img, (self.final_width, self.final_height), interpolation=cv2.INTER_AREA)
       final_annot = cut_annot[::size_idx, ::size_idx]
 
-      # cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_img.jpg', final_img)
-      # cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_mask.jpg', final_annot)
+      cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_img.jpg', final_img)
+      cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_mask.jpg', final_annot)
 
       return final_img, final_annot
 
@@ -200,7 +201,7 @@ class BatchDatset (threading.Thread):
         if len(self.images) < self.batch_size:
           self.load_next_images = True
 
-    def next_batch_random_mod(self):
+    def next_batch(self, random_mod):
 
       # Wait for the images to be loaded if they are not already in place
       self.wait_for_images()
@@ -226,7 +227,13 @@ class BatchDatset (threading.Thread):
         idx = 0
         for img in self.images:
           annot = self.annotations[idx]
-          img_trans, annot_trans = self._random_transform(img, annot)
+
+          if random_mod:
+            img_trans, annot_trans = self._random_transform(img, annot)
+          else:
+            img_trans = img
+            annot_trans = annot
+
           img_batch_list.append(img_trans)
           annot_batch_list.append(annot_trans)
           idx += 1
@@ -236,10 +243,10 @@ class BatchDatset (threading.Thread):
           (len(annot_batch_list), self.final_height, self.final_width, 1))
 
         # now kick off thread to load next batch of images.
-        print("processed next batch.")
+        # print("processed next batch.")
         self.load_next_images = True
 
-        return img_batch, annot_batch
+        return img_batch, annot_batch, self.image_files
 
     def get_random_batch(self, batch_size):
       indexes = np.random.randint(0, self.images.shape[0], size=[batch_size]).tolist()
