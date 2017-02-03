@@ -11,7 +11,7 @@ import TensorflowUtils as utils
 DATA_URL = 'http://sceneparsing.csail.mit.edu/data/ADEChallengeData2016.zip'
 
 
-def read_dataset(data_dir):
+def read_dataset(data_dir, random_names):
     #pickle_filename = "MITSceneParsing.pickle"
     pickle_filename = "Weeds.pickle"
     pickle_filepath = os.path.join(data_dir, pickle_filename)
@@ -30,7 +30,14 @@ def read_dataset(data_dir):
         result = pickle.load(f)
         training_records = result['training']
         validation_records = result['validation']
+
+        if random_names:
+          random.shuffle(training_records)
+          random.shuffle(validation_records)
+
         del result
+
+
 
     return training_records, validation_records
 
@@ -58,12 +65,13 @@ def create_image_lists(image_dir):
                 annotation_file = os.path.join(image_dir, "annotations", directory, filename + '.png')
                 #print("annot_filename:", annotation_file)
                 if os.path.exists(annotation_file):
-                    record = {'image': f, 'annotation': annotation_file, 'filename': filename}
+                    record = {'image': f,
+                              'annotation': annotation_file,
+                              'filename': filename}
                     image_list[directory].append(record)
                 else:
                     print("Annotation file not found for %s - Skipping" % filename)
 
-        random.shuffle(image_list[directory])
         no_of_images = len(image_list[directory])
         print ('No. of %s files: %d' % (directory, no_of_images))
 

@@ -7,16 +7,8 @@ import read_MITSceneParsingData as scene_parsing
 import datetime
 import BatchDatsetReader as dataset
 from six.moves import xrange
-
-# D:\Projects\FCN_tensorflow\data/logs/
-FLAGS = tf.flags.FLAGS
-tf.flags.DEFINE_integer("batch_size", "1", "batch size for training")
-tf.flags.DEFINE_string("logs_dir", "F:/tmp/FCN/", "path to logs directory")
-tf.flags.DEFINE_string("data_dir", "F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/", "path to dataset")
-tf.flags.DEFINE_float("learning_rate", "1e-4", "Learning rate for Adam Optimizer")
-tf.flags.DEFINE_string("model_dir", "F:/Projects/FCN_tensorflow/data/Model_zoo/", "Path to vgg model mat")
-tf.flags.DEFINE_bool('debug', "True", "Debug mode: True/ False")
-tf.flags.DEFINE_string('mode', "train", "Mode train/ test/ visualize")
+import time
+import os
 
 MODEL_URL = 'http://www.vlfeat.org/matconvnet/models/beta16/imagenet-vgg-verydeep-19.mat'
 
@@ -24,7 +16,7 @@ MODEL_URL = 'http://www.vlfeat.org/matconvnet/models/beta16/imagenet-vgg-verydee
 class Segment:
 
   max_iterations = int(1e5 + 1)
-  num_of_classes = 50
+  num_of_classes = 255
   image_resize = False
   image_width = 672
   image_height = 380
@@ -45,6 +37,12 @@ class Segment:
   validation_dataset_reader = None
   saver = None
   summary_writer = None
+  FLAGS = tf.flags.FLAGS
+
+  def __init__(self, resize=False, width=672, height=380):
+    self.image_resize = resize
+    self.image_width = width
+    self.image_height = height
 
   def vgg_net(self, weights, image):
     layers = (
@@ -75,7 +73,7 @@ class Segment:
         current = utils.conv2d_basic(current, kernels, bias)
       elif kind == 'relu':
         current = tf.nn.relu(current, name=name)
-        if FLAGS.debug:
+        if self.FLAGS.debug:
           utils.add_activation_summary(current)
       elif kind == 'pool':
         current = utils.avg_pool_2x2(current)
@@ -91,7 +89,7 @@ class Segment:
     :return:
     """
     print("setting up vgg initialized conv layers ...")
-    model_data = utils.get_model_data(FLAGS.model_dir, MODEL_URL)
+    model_data = utils.get_model_data(self.FLAGS.model_dir, MODEL_URL)
 
     mean = model_data['normalization'][0][0][0]
     mean_pixel = np.mean(mean, axis=(0, 1))
@@ -110,7 +108,7 @@ class Segment:
       b6 = utils.bias_variable([4096], name="b6")
       conv6 = utils.conv2d_basic(pool5, W6, b6)
       relu6 = tf.nn.relu(conv6, name="relu6")
-      if FLAGS.debug:
+      if self.FLAGS.debug:
           utils.add_activation_summary(relu6)
       relu_dropout6 = tf.nn.dropout(relu6, keep_prob=keep_prob)
 
@@ -118,7 +116,7 @@ class Segment:
       b7 = utils.bias_variable([4096], name="b7")
       conv7 = utils.conv2d_basic(relu_dropout6, W7, b7)
       relu7 = tf.nn.relu(conv7, name="relu7")
-      if FLAGS.debug:
+      if self.FLAGS.debug:
           utils.add_activation_summary(relu7)
       relu_dropout7 = tf.nn.dropout(relu7, keep_prob=keep_prob)
 
@@ -151,16 +149,16 @@ class Segment:
     return tf.expand_dims(annotation_pred, dim=3), conv_t3
 
   def train(self, loss_val, var_list):
-    optimizer = tf.train.AdamOptimizer(FLAGS.learning_rate)
+    optimizer = tf.train.AdamOptimizer(self.FLAGS.learning_rate)
     grads = optimizer.compute_gradients(loss_val, var_list=var_list)
-    if FLAGS.debug:
+    if self.FLAGS.debug:
       # print(len(var_list))
       for grad, var in grads:
         utils.add_gradient_summary(grad, var)
 
     return optimizer.apply_gradients(grads)
 
-  def init_network(self):
+  def init_network(self, random_filenames):
     self.keep_probability = tf.placeholder(tf.float32, name="keep_probabilty")
     self.image = tf.placeholder(tf.float32,
                shape=[None, self.image_height, self.image_width, 3], name="input_image")
@@ -178,7 +176,7 @@ class Segment:
     tf.summary.scalar("training_loss", self.loss)
 
     self.trainable_var = tf.trainable_variables()
-    if FLAGS.debug:
+    if self.FLAGS.debug:
         for var in self.trainable_var:
             utils.add_to_regularization_and_summary(var)
         self.train_op = self.train(self.loss, self.trainable_var)
@@ -189,7 +187,8 @@ class Segment:
     self.val_loss_sum_op = tf.summary.scalar("validation_loss", self.loss)
 
     print("Setting up image reader...")
-    self.train_records, self.valid_records = scene_parsing.read_dataset(FLAGS.data_dir)
+    self.train_records, self.valid_records = \
+      scene_parsing.read_dataset(self.FLAGS.data_dir, random_filenames)
     print(len(self.train_records))
     print(len(self.valid_records))
 
@@ -197,19 +196,28 @@ class Segment:
     image_options = {'resize': self.image_resize,
                      'image_height': self.image_height,
                      'image_width': self.image_width}
-    if FLAGS.mode == 'train':
-        self.train_dataset_reader = dataset.BatchDatset(self.train_records, image_options)
-    self.validation_dataset_reader = dataset.BatchDatset(self.valid_records, image_options)
+    if self.FLAGS.mode == 'train':
+        self.train_dataset_reader = dataset.BatchDatset(
+          self.train_records, self.FLAGS.batch_size, image_options)
+        self.train_dataset_reader.start()
+        # Wait for first images to load
+        self.train_dataset_reader.wait_for_images()
+
+    self.validation_dataset_reader = dataset.BatchDatset(
+      self.valid_records, self.FLAGS.batch_size, image_options)
+    self.validation_dataset_reader.start()
+    # Wait for first images to load
+    self.validation_dataset_reader.wait_for_images()
 
     self.sess = tf.Session()
 
     print("Setting up Saver...")
     self.saver = tf.train.Saver()
-    self.summary_writer =  tf.summary.FileWriter(FLAGS.logs_dir, self.sess.graph)
+    self.summary_writer =  tf.summary.FileWriter(self.FLAGS.logs_dir, self.sess.graph)
 
     self.sess.run(tf.global_variables_initializer())
 
-    ckpt = tf.train.get_checkpoint_state(FLAGS.logs_dir)
+    ckpt = tf.train.get_checkpoint_state(self.FLAGS.logs_dir)
     if ckpt and ckpt.model_checkpoint_path:
       self.saver.restore(self.sess, ckpt.model_checkpoint_path)
       print("Model restored...")
@@ -217,7 +225,8 @@ class Segment:
   def train_network(self):
 
     for itr in xrange(self.max_iterations):
-      train_images, train_annotations = self.train_dataset_reader.next_batch_random_mod(FLAGS.batch_size)
+      train_images, train_annotations, train_image_names = \
+        self.train_dataset_reader.next_batch(True)
       feed_dict = {self.image: train_images,
                    self.annotation: train_annotations,
                    self.keep_probability: 0.85}
@@ -225,21 +234,24 @@ class Segment:
       self.sess.run(self.train_op, feed_dict=feed_dict)
 
       if itr % 10 == 0:
-        train_loss, summary_str = self.sess.run([self.loss, self.summary_op], feed_dict=feed_dict)
+        train_loss, summary_str = \
+          self.sess.run([self.loss, self.summary_op], feed_dict=feed_dict)
         print("Step: %d, Train_loss:%g" % (itr, train_loss))
         self.summary_writer.add_summary(summary_str, itr)
 
       if itr % 500 == 0:
-        valid_images, valid_annotations = self.validation_dataset_reader.next_batch_random_mod(FLAGS.batch_size)
+        valid_images, valid_annotations, val_image_names = \
+          self.validation_dataset_reader.next_batch(True)
         valid_loss, val_summary_str = self.sess.run([self.loss, self.val_loss_sum_op],
               feed_dict={self.image: valid_images, self.annotation: valid_annotations,
                          self.keep_probability: 1.0})
         self.summary_writer.add_summary(val_summary_str, itr)
         print("%s ---> Validation_loss: %g" % (datetime.datetime.now(), valid_loss))
-        self.saver.save(self.sess, FLAGS.logs_dir + "model.ckpt", itr)
+        #self.saver.save(self.sess, self.FLAGS.logs_dir + "model.ckpt", itr)
 
-  def visualize_batch(self):
-    valid_images, valid_annotations = self.validation_dataset_reader.get_random_batch(FLAGS.batch_size)
+  def visualize_batch(self, data_reader, random_images, save_dir):
+    valid_images, valid_annotations, valid_filenames = \
+      data_reader.next_batch(random_images)
     pred = self.sess.run(self.pred_annotation,
                          feed_dict={self.image: valid_images,
                                     self.annotation: valid_annotations,
@@ -247,8 +259,22 @@ class Segment:
     valid_annotations = np.squeeze(valid_annotations, axis=3)
     pred = np.squeeze(pred, axis=3)
 
-    for itr in range(FLAGS.batch_size):
-      utils.save_image(valid_images[itr].astype(np.uint8), FLAGS.logs_dir, name="inp_" + str(5 + itr))
-      utils.save_image(valid_annotations[itr].astype(np.uint8), FLAGS.logs_dir, name="gt_" + str(5 + itr))
-      utils.save_image(pred[itr].astype(np.uint8), FLAGS.logs_dir, name="pred_" + str(5 + itr))
-      print("Saved image: %d" % itr)
+    itr = 0
+    for img_name in valid_filenames:
+      utils.save_image(valid_images[itr].astype(np.uint8),
+                       self.FLAGS.logs_dir, name=os.path.join(save_dir,
+                                                              img_name['filename']+"_input"))
+      utils.save_image(valid_annotations[itr].astype(np.uint8),
+                       self.FLAGS.logs_dir, name=os.path.join(save_dir,
+                                                              img_name['filename']+"_mask"))
+      utils.save_image(pred[itr].astype(np.uint8),
+                       self.FLAGS.logs_dir, name=os.path.join(save_dir,
+                                                              img_name['filename']+"_pred"))
+      itr += 1
+      print("Saved image: ", img_name)
+
+  def visualize_directory(self, data_reader, random_images, save_dir):
+    total_count = int(len(data_reader.files) / self.FLAGS.batch_size)
+
+    for idx in range(total_count):
+      self.visualize_batch(data_reader, random_images, save_dir)
