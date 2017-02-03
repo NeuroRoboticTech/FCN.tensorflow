@@ -16,6 +16,7 @@ MODEL_URL = 'http://www.vlfeat.org/matconvnet/models/beta16/imagenet-vgg-verydee
 class Segment:
 
   max_iterations = int(1e5 + 1)
+  max_epochs = 100
   num_of_classes = 255
   image_resize = False
   image_width = 672
@@ -191,6 +192,7 @@ class Segment:
       scene_parsing.read_dataset(self.FLAGS.data_dir, random_filenames)
     print(len(self.train_records))
     print(len(self.valid_records))
+    self.max_iterations = self.max_epochs * len(self.train_records)
 
     print("Setting up dataset reader")
     image_options = {'resize': self.image_resize,
