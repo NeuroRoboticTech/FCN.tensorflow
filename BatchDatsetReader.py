@@ -122,7 +122,9 @@ class BatchDatset (threading.Thread):
       img_width_multiple = int(img.shape[1] / self.final_width)
 
       # Randomly choose a size to use
-      size_idx = np.random.randint(3, img_width_multiple)
+      size_idx = np.random.randint(4, img_width_multiple)
+      if size_idx == 4:  # 3 and 4 give larger image a 50% chance of being picked.
+        size_idx = 3
       cut_width = int(size_idx * self.final_width)
       cut_height = int(cut_width * (self.final_height/self.final_width))
 
@@ -153,8 +155,8 @@ class BatchDatset (threading.Thread):
       final_img = cv2.resize(cut_img, (self.final_width, self.final_height), interpolation=cv2.INTER_AREA)
       final_annot = cut_annot[::size_idx, ::size_idx]
 
-      cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_img.jpg', final_img)
-      cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_mask.jpg', final_annot)
+      #cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_img.jpg', final_img)
+      #cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_mask.jpg', final_annot)
 
       return final_img, final_annot
 
