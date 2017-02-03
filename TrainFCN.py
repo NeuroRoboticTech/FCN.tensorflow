@@ -13,7 +13,7 @@ tf.flags.DEFINE_string('mode', "train", "Mode train/ test/ visualize")
 
 def main(argv=None):
   segment = FCN.Segment()
-  segment.init_network()
+  segment.init_network(True)
   segment.train_network()
 
 if __name__ == "__main__":

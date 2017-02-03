@@ -16,7 +16,7 @@ MODEL_URL = 'http://www.vlfeat.org/matconvnet/models/beta16/imagenet-vgg-verydee
 class Segment:
 
   max_iterations = int(1e5 + 1)
-  num_of_classes = 50
+  num_of_classes = 255
   image_resize = False
   image_width = 672
   image_height = 380
@@ -247,7 +247,7 @@ class Segment:
                          self.keep_probability: 1.0})
         self.summary_writer.add_summary(val_summary_str, itr)
         print("%s ---> Validation_loss: %g" % (datetime.datetime.now(), valid_loss))
-        self.saver.save(self.sess, self.FLAGS.logs_dir + "model.ckpt", itr)
+        #self.saver.save(self.sess, self.FLAGS.logs_dir + "model.ckpt", itr)
 
   def visualize_batch(self, data_reader, random_images, save_dir):
     valid_images, valid_annotations, valid_filenames = \

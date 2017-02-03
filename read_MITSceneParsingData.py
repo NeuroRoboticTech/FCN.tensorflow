@@ -28,12 +28,12 @@ def read_dataset(data_dir, random_names):
 
     with open(pickle_filepath, 'rb') as f:
         result = pickle.load(f)
+        training_records = result['training']
+        validation_records = result['validation']
+
         if random_names:
-          training_records = random.shuffle(result['training'])
-          validation_records = random.shuffle(result['validation'])
-        else:
-          training_records = result['training']
-          validation_records = result['validation']
+          random.shuffle(training_records)
+          random.shuffle(validation_records)
 
         del result
 
