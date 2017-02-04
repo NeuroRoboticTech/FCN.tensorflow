@@ -100,7 +100,7 @@ class BatchDatset (threading.Thread):
     def reset_batch_offset(self, offset=0):
         self.batch_offset = offset
 
-    def _random_transform(self, img, annot):
+    def _random_transform(self, img, annot, save_out):
       # Flip the image around the vertical axis randomly
       if np.random.randint(0, 100) > 50:
         new_img = cv2.flip(img, 1)
@@ -122,9 +122,9 @@ class BatchDatset (threading.Thread):
       img_width_multiple = int(img.shape[1] / self.final_width)
 
       # Randomly choose a size to use
-      size_idx = np.random.randint(4, img_width_multiple)
-      if size_idx == 4:  # 3 and 4 give larger image a 50% chance of being picked.
-        size_idx = 3
+      size_idx = np.random.randint(3, img_width_multiple+2)
+      if size_idx >= img_width_multiple:  # Give larger image a greater chance of being picked.
+        size_idx = img_width_multiple
       cut_width = int(size_idx * self.final_width)
       cut_height = int(cut_width * (self.final_height/self.final_width))
 
@@ -155,8 +155,9 @@ class BatchDatset (threading.Thread):
       final_img = cv2.resize(cut_img, (self.final_width, self.final_height), interpolation=cv2.INTER_AREA)
       final_annot = cut_annot[::size_idx, ::size_idx]
 
-      #cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_img.jpg', final_img)
-      #cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_mask.jpg', final_annot)
+      if save_out:
+        cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_img.jpg', final_img)
+        cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_mask.jpg', final_annot)
 
       return final_img, final_annot
 
@@ -203,7 +204,7 @@ class BatchDatset (threading.Thread):
         if len(self.images) < self.batch_size:
           self.load_next_images = True
 
-    def next_batch(self, random_mod):
+    def next_batch(self, random_mod, save_out):
 
       # Wait for the images to be loaded if they are not already in place
       self.wait_for_images()
@@ -231,7 +232,7 @@ class BatchDatset (threading.Thread):
           annot = self.annotations[idx]
 
           if random_mod:
-            img_trans, annot_trans = self._random_transform(img, annot)
+            img_trans, annot_trans = self._random_transform(img, annot, save_out)
           else:
             img_trans = img
             annot_trans = annot

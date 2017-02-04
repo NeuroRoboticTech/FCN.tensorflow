@@ -192,7 +192,7 @@ class Segment:
       scene_parsing.read_dataset(self.FLAGS.data_dir, random_filenames)
     print(len(self.train_records))
     print(len(self.valid_records))
-    self.max_iterations = self.max_epochs * len(self.train_records)
+    self.max_iterations = self.max_epochs * len(self.train_records) + 1
 
     print("Setting up dataset reader")
     image_options = {'resize': self.image_resize,
@@ -228,7 +228,7 @@ class Segment:
 
     for itr in xrange(self.max_iterations):
       train_images, train_annotations, train_image_names = \
-        self.train_dataset_reader.next_batch(True)
+        self.train_dataset_reader.next_batch(True, False)
       feed_dict = {self.image: train_images,
                    self.annotation: train_annotations,
                    self.keep_probability: 0.85}
@@ -243,13 +243,13 @@ class Segment:
 
       if itr % 500 == 0:
         valid_images, valid_annotations, val_image_names = \
-          self.validation_dataset_reader.next_batch(True)
+          self.validation_dataset_reader.next_batch(True, True)
         valid_loss, val_summary_str = self.sess.run([self.loss, self.val_loss_sum_op],
               feed_dict={self.image: valid_images, self.annotation: valid_annotations,
                          self.keep_probability: 1.0})
         self.summary_writer.add_summary(val_summary_str, itr)
         print("%s ---> Validation_loss: %g" % (datetime.datetime.now(), valid_loss))
-        #self.saver.save(self.sess, self.FLAGS.logs_dir + "model.ckpt", itr)
+        self.saver.save(self.sess, self.FLAGS.logs_dir + "model.ckpt", itr)
 
   def visualize_batch(self, data_reader, random_images, save_dir):
     valid_images, valid_annotations, valid_filenames = \
