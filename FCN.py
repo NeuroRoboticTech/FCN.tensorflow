@@ -253,7 +253,7 @@ class Segment:
 
   def visualize_batch(self, data_reader, random_images, save_dir):
     valid_images, valid_annotations, valid_filenames = \
-      data_reader.next_batch(random_images)
+      data_reader.next_batch(random_images, False)
     pred = self.sess.run(self.pred_annotation,
                          feed_dict={self.image: valid_images,
                                     self.annotation: valid_annotations,

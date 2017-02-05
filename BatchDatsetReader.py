@@ -132,8 +132,15 @@ class BatchDatset (threading.Thread):
       # we will begin the cut.
       area_width = img.shape[1] - cut_width
       area_height = img.shape[0] - cut_height
-      cut_x = np.random.randint(0, area_width-1)
-      cut_y = np.random.randint(0, area_height-1)
+      if area_width > 0:
+        cut_x = np.random.randint(0, area_width-1)
+      else:
+        cut_x = 0
+
+      if area_height > 0:
+        cut_y = np.random.randint(0, area_height - 1)
+      else:
+        cut_y = 0
 
       # Cut out a section of the large image to resize to the
       # smaller section.
@@ -144,10 +151,10 @@ class BatchDatset (threading.Thread):
 
       # Randomly alter the contrast and brightness of the cut image
       # use normal distribution around 1 for contrast multiplier
-      contrast = np.random.normal(1.0, 0.02)
-      brightness = np.random.randint(-10, 10)
+      #contrast = 1 #np.random.normal(1.0, 0.02)
+      #brightness = np.random.randint(-10, 10)
 
-      cut_img = (contrast * cut_img) + brightness
+      #cut_img = (contrast * cut_img) + brightness
 
       #cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/cut_bright.jpg', cut_img)
 
@@ -156,8 +163,9 @@ class BatchDatset (threading.Thread):
       final_annot = cut_annot[::size_idx, ::size_idx]
 
       if save_out:
+        cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_orig.jpg', img)
         cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_img.jpg', final_img)
-        cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_mask.jpg', final_annot)
+        cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_mask.png', final_annot)
 
       return final_img, final_annot
 
