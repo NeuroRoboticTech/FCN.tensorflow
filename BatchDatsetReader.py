@@ -244,7 +244,6 @@ class BatchDatset (threading.Thread):
         if self.batch_offset > len(self.files):
           # Finished epoch
           self.epochs_completed += 1
-          print("****************** Epochs completed: " + str(self.epochs_completed) + "******************")
           # Shuffle the data
           random.shuffle(self.files)
           # Start next epoch

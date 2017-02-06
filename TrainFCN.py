@@ -13,14 +13,14 @@ tf.flags.DEFINE_string('mode', "train", "Mode train/ test/ visualize")
 
 
 def main(argv=None):
-  try:
-    segment = FCN.Segment()
-    segment.init_network(True)
-    segment.train_network()
-    segment.close()
-  except:
-    e = sys.exc_info()
-    print("Unexpected error:", e)
+  # try:
+  segment = FCN.Segment()
+  segment.init_network(True)
+  segment.train_network()
+  segment.close()
+  # except:
+  #   e = sys.exc_info()
+  #   print("Unexpected error:", e)
 
 
 if __name__ == "__main__":

@@ -41,6 +41,9 @@ class Segment:
   summary_writer = None
   FLAGS = tf.flags.FLAGS
 
+  train_accuracy = None
+  val_accuracy = None
+
   conn = None
   cur = None
   run_name = "run1"
@@ -194,6 +197,13 @@ class Segment:
                                                      name="entropy")))
     tf.summary.scalar("training_loss", self.loss)
 
+    # Define the train/val accuracy variables.
+    # self.train_accuracy = tf.Variable(0)
+    # self.val_accuracy = tf.Variable(0)
+
+    # tf.summary.scalar("training_accuracy", self.train_accuracy)
+    # tf.summary.scalar("validation_accuracy", self.val_accuracy)
+
     self.trainable_var = tf.trainable_variables()
     if self.FLAGS.debug:
         for var in self.trainable_var:
@@ -273,9 +283,20 @@ class Segment:
           print("%s ---> Validation_loss: %g, file: %s" % (datetime.datetime.now(), valid_loss,
                                                        self.validation_dataset_reader.filename['filename']))
           self.save_loss_to_db(epoch, itr, valid_loss, self.validation_dataset_reader, False)
-          self.saver.save(self.sess, self.FLAGS.logs_dir + "model.ckpt", itr)
+          # self.saver.save(self.sess, self.FLAGS.logs_dir + "model.ckpt", itr)
 
         itr += 1
+
+      # Calculate accuracies for all validation images.
+      train_accuracy_val = self.calc_accuracies_for_images(epoch, self.train_dataset_reader, True)
+      val_accuracy_val = self.calc_accuracies_for_images(epoch, self.validation_dataset_reader, False)
+
+      # Not set our tf vars for accuracy and update them.
+      # train_accuracy_assign_op = self.train_accuracy.assign(train_accuracy_val)
+      # val_accuracy_assign_op = self.val_accuracy.assign(val_accuracy_val)
+      # self.sess.run([train_accuracy_assign_op, val_accuracy_assign_op])
+
+      print("****************** Epochs completed: " + str(epoch) + "******************")
 
   def visualize_batch(self, data_reader, random_images, save_dir):
     valid_images, valid_annotations, valid_filenames = \
@@ -321,3 +342,74 @@ class Segment:
                       dataset_reader.rotation, dataset_reader.size_idx,
                       dataset_reader.cut_x, dataset_reader.cut_y))
     self.conn.commit()
+
+  def calc_accuracy_for_image(self, mask_orig, mask_pred):
+    # Find the difference between all pixel values.
+    # When pixels match the diff will be 0. When they do not they will be some
+    # other value.
+    diff_mask = np.absolute(mask_orig - mask_pred)
+
+    # Generate an array with 1  for
+    errors = np.where(diff_mask > 2)
+    pixels_incorrect = len(errors[0])
+    accuracy = float(mask_orig.size - pixels_incorrect)/float(mask_orig.size) * 100.0
+
+    return accuracy
+
+  def save_accuracy_to_db(self, epoch, itr, img_name,
+                          accuracy, train_record, data_reader):
+    self.cur.execute("INSERT INTO accuracies (experiment_id, epoch, "
+                     "iteration, accuracy, training, image, flip, "
+                     "rotation, size_idx, cut_x, cut_y) VALUES "
+                     "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                     (self.run_id, epoch, itr, float(accuracy), train_record,
+                      data_reader.filename['filename'], data_reader.flip,
+                      data_reader.rotation, data_reader.size_idx,
+                      data_reader.cut_x, data_reader.cut_y))
+    self.conn.commit()
+
+  def save_avg_accuracy_to_db(self, epoch, avg_accuracy, train_record):
+    self.cur.execute("INSERT INTO average_accuracies (experiment_id, epoch, "
+                     "accuracy, training) VALUES "
+                     "(%s, %s, %s, %s)",
+                     (self.run_id, epoch, float(avg_accuracy), train_record))
+    self.conn.commit()
+
+  def calc_accuracy_for_batch(self, epoch, data_reader, train_record):
+    valid_images, valid_annotations, valid_filenames = \
+      data_reader.next_batch(True, False)
+    pred = self.sess.run(self.pred_annotation,
+                         feed_dict={self.image: valid_images,
+                                    self.annotation: valid_annotations,
+                                    self.keep_probability: 1.0})
+    valid_annotations = np.squeeze(valid_annotations, axis=3)
+    pred = np.squeeze(pred, axis=3)
+
+    itr = 0
+    total_accuracy = 0
+    for img_name in valid_filenames:
+      # Using int16 here so I can do differences of two images.
+      mask_orig = valid_annotations[itr].astype(np.int16)
+      mask_pred = pred[itr].astype(np.int16)
+      accuracy = self.calc_accuracy_for_image(mask_orig, mask_pred)
+      total_accuracy += accuracy
+      itr += 1
+      self.save_accuracy_to_db(epoch, itr, img_name['filename'],
+                               accuracy, train_record, data_reader)
+
+    return total_accuracy
+
+  def calc_accuracies_for_images(self, epoch, data_reader, train_record):
+
+    total_count = int(len(data_reader.files) / self.FLAGS.batch_size)
+
+    total_accuracy = 0.0
+    for idx in range(total_count):
+      accuracy = self.calc_accuracy_for_batch(epoch, data_reader, train_record)
+      total_accuracy += accuracy
+
+    avg_accuracy = float(total_accuracy / total_count)
+    self.save_avg_accuracy_to_db(epoch, avg_accuracy, train_record)
+
+    return avg_accuracy
+

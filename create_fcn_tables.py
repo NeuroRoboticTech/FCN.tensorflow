@@ -30,6 +30,12 @@ cur.execute("CREATE TABLE accuracies (id bigserial PRIMARY KEY, "
             "rotation INT NOT NULL, size_idx INT NOT NULL, "
             "cut_x INT NOT NULL, cut_y INT NOT NULL);")
 
+cur.execute("CREATE TABLE average_accuracies (id bigserial PRIMARY KEY, "
+            "experiment_id BIGINT REFERENCES experiment (id), "
+            "created_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(), "
+            "epoch INT NOT NULL, "
+            "training BOOLEAN NOT NULL, "
+            "accuracy DOUBLE PRECISION NOT NULL);")
 
 # cur.execute("INSERT INTO test (num, data) VALUES (%s, %s)", (100, "abc'def"))
 
