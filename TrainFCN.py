@@ -1,6 +1,7 @@
 import numpy as np
 import FCN
 import tensorflow as tf
+import sys
 
 tf.flags.DEFINE_integer("batch_size", "1", "batch size for training")
 tf.flags.DEFINE_string("logs_dir", "F:/tmp/FCN/", "path to logs directory")
@@ -12,9 +13,15 @@ tf.flags.DEFINE_string('mode', "train", "Mode train/ test/ visualize")
 
 
 def main(argv=None):
-  segment = FCN.Segment()
-  segment.init_network(True)
-  segment.train_network()
+  try:
+    segment = FCN.Segment()
+    segment.init_network(True)
+    segment.train_network()
+    segment.close()
+  except:
+    e = sys.exc_info()
+    print("Unexpected error:", e)
+
 
 if __name__ == "__main__":
     tf.app.run()

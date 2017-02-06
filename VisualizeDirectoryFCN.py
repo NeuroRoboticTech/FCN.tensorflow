@@ -18,6 +18,7 @@ def main(argv=None):
   segment.visualize_directory(
     segment.validation_dataset_reader, False,
     "F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/predictions")
+  segment.close()
 
 if __name__ == "__main__":
     tf.app.run()

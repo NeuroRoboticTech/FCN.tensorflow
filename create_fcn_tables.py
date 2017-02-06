@@ -17,7 +17,7 @@ cur.execute("CREATE TABLE losses (id bigserial PRIMARY KEY, "
             "loss DOUBLE PRECISION NOT NULL, "
             "training BOOLEAN NOT NULL, "
             "image varchar(255) NOT NULL, flip BOOLEAN NOT NULL, "
-            "rotation REAL NOT NULL, size_idx INT NOT NULL, "
+            "rotation INT NOT NULL, size_idx INT NOT NULL, "
             "cut_x INT NOT NULL, cut_y INT NOT NULL);")
 
 cur.execute("CREATE TABLE accuracies (id bigserial PRIMARY KEY, "
@@ -27,7 +27,7 @@ cur.execute("CREATE TABLE accuracies (id bigserial PRIMARY KEY, "
             "training BOOLEAN NOT NULL, "
             "accuracy DOUBLE PRECISION NOT NULL, "
             "image varchar(255) NOT NULL, flip BOOLEAN NOT NULL, "
-            "rotation REAL NOT NULL, size_idx INT NOT NULL, "
+            "rotation INT NOT NULL, size_idx INT NOT NULL, "
             "cut_x INT NOT NULL, cut_y INT NOT NULL);")
 
 

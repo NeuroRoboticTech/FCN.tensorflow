@@ -42,6 +42,13 @@ class BatchDatset (threading.Thread):
     exit_thread = False
     lock = threading.Lock()
 
+    filename = ""
+    flip = False
+    rotation = 0.0
+    size_idx = 0
+    cut_x = 0
+    cut_y = 0
+
     def __init__(self, records_list, batch_size, image_options={}):
         """
         Intialize a generic file reader with batching for list of files
@@ -66,6 +73,13 @@ class BatchDatset (threading.Thread):
         self.end_idx = self.batch_offset
         self.final_height = int(self.image_options["image_height"])
         self.final_width = int(self.image_options["image_width"])
+
+        self.filename = ""
+        self.flip = False
+        self.rotation = 0
+        self.size_idx = 0
+        self.cut_x = 0
+        self.cut_y = 0
 
     def _read_images(self):
         self.__channels = True
@@ -105,14 +119,17 @@ class BatchDatset (threading.Thread):
       if np.random.randint(0, 100) > 50:
         new_img = cv2.flip(img, 1)
         new_annot = cv2.flip(annot, 1)
+        self.flip = True
       else:
         new_img = img
         new_annot = annot
+        self.flip = False
 
       # Rotate the image if needed. Use a normal distribution
       # and truncate it to an integer to get the rotation degrees
       # to use.
       rotate_deg = int(np.random.normal(0, 8))
+      self.rotation = rotate_deg
       if rotate_deg != 0:
         new_img = rotate_img(new_img, rotate_deg)
         new_annot = rotate_img(new_annot, rotate_deg)
@@ -127,6 +144,7 @@ class BatchDatset (threading.Thread):
         size_idx = img_width_multiple
       cut_width = int(size_idx * self.final_width)
       cut_height = int(cut_width * (self.final_height/self.final_width))
+      self.size_idx = size_idx
 
       # Randomly choose the pixel for the top-left corner where
       # we will begin the cut.
@@ -141,6 +159,9 @@ class BatchDatset (threading.Thread):
         cut_y = np.random.randint(0, area_height - 1)
       else:
         cut_y = 0
+
+      self.cut_x = cut_x
+      self.cut_y = cut_y
 
       # Cut out a section of the large image to resize to the
       # smaller section.
@@ -238,6 +259,7 @@ class BatchDatset (threading.Thread):
         idx = 0
         for img in self.images:
           annot = self.annotations[idx]
+          self.filename = self.image_files[idx]
 
           if random_mod:
             img_trans, annot_trans = self._random_transform(img, annot, save_out)

@@ -9,6 +9,7 @@ import BatchDatsetReader as dataset
 from six.moves import xrange
 import time
 import os
+import psycopg2
 
 MODEL_URL = 'http://www.vlfeat.org/matconvnet/models/beta16/imagenet-vgg-verydeep-19.mat'
 
@@ -39,6 +40,12 @@ class Segment:
   saver = None
   summary_writer = None
   FLAGS = tf.flags.FLAGS
+
+  conn = None
+  cur = None
+  run_name = "run1"
+  run_descr = "test"
+  run_id = 0
 
   def __init__(self, resize=False, width=672, height=380):
     self.image_resize = resize
@@ -160,6 +167,17 @@ class Segment:
     return optimizer.apply_gradients(grads)
 
   def init_network(self, random_filenames):
+    # Create DB entries.
+    self.conn = psycopg2.connect("dbname=fcn_rgb user=dnn_user password=pgpswd")
+    self.cur = self.conn.cursor()
+    self.cur.execute("INSERT INTO experiment (name, description) VALUES (%s, %s)",
+                     (self.run_name, self.run_descr))
+    self.cur.execute("SELECT id FROM experiment where name=%s;", (self.run_name, ))
+    r = self.cur.fetchone()
+    self.run_id = int(r[0])
+    self.conn.commit()
+
+    # create newtork
     self.keep_probability = tf.placeholder(tf.float32, name="keep_probabilty")
     self.image = tf.placeholder(tf.float32,
                shape=[None, self.image_height, self.image_width, 3], name="input_image")
@@ -226,30 +244,38 @@ class Segment:
 
   def train_network(self):
 
-    for itr in xrange(self.max_iterations):
-      train_images, train_annotations, train_image_names = \
-        self.train_dataset_reader.next_batch(True, False)
-      feed_dict = {self.image: train_images,
-                   self.annotation: train_annotations,
-                   self.keep_probability: 0.85}
+    itr = 0
+    for epoch in xrange(self.max_epochs):
+      for epoch_itr in xrange(len(self.train_records)):
+        train_images, train_annotations, train_image_names = \
+          self.train_dataset_reader.next_batch(True, False)
+        feed_dict = {self.image: train_images,
+                     self.annotation: train_annotations,
+                     self.keep_probability: 0.85}
 
-      self.sess.run(self.train_op, feed_dict=feed_dict)
+        self.sess.run(self.train_op, feed_dict=feed_dict)
 
-      if itr % 10 == 0:
-        train_loss, summary_str = \
-          self.sess.run([self.loss, self.summary_op], feed_dict=feed_dict)
-        print("Step: %d, Train_loss:%g" % (itr, train_loss))
-        self.summary_writer.add_summary(summary_str, itr)
+        if itr % 10 == 0:
+          train_loss, summary_str = \
+            self.sess.run([self.loss, self.summary_op], feed_dict=feed_dict)
+          print("Step: %d, Train_loss:%g, file: %s" % (itr, train_loss,
+                                                       self.train_dataset_reader.filename['filename']))
+          self.summary_writer.add_summary(summary_str, itr)
+          self.save_loss_to_db(epoch, itr, train_loss, self.train_dataset_reader, True)
 
-      if itr % 500 == 0:
-        valid_images, valid_annotations, val_image_names = \
-          self.validation_dataset_reader.next_batch(True, True)
-        valid_loss, val_summary_str = self.sess.run([self.loss, self.val_loss_sum_op],
-              feed_dict={self.image: valid_images, self.annotation: valid_annotations,
-                         self.keep_probability: 1.0})
-        self.summary_writer.add_summary(val_summary_str, itr)
-        print("%s ---> Validation_loss: %g" % (datetime.datetime.now(), valid_loss))
-        self.saver.save(self.sess, self.FLAGS.logs_dir + "model.ckpt", itr)
+        if itr % 500 == 0:
+          valid_images, valid_annotations, val_image_names = \
+            self.validation_dataset_reader.next_batch(True, True)
+          valid_loss, val_summary_str = self.sess.run([self.loss, self.val_loss_sum_op],
+                feed_dict={self.image: valid_images, self.annotation: valid_annotations,
+                           self.keep_probability: 1.0})
+          self.summary_writer.add_summary(val_summary_str, itr)
+          print("%s ---> Validation_loss: %g, file: %s" % (datetime.datetime.now(), valid_loss,
+                                                       self.validation_dataset_reader.filename['filename']))
+          self.save_loss_to_db(epoch, itr, valid_loss, self.validation_dataset_reader, False)
+          self.saver.save(self.sess, self.FLAGS.logs_dir + "model.ckpt", itr)
+
+        itr += 1
 
   def visualize_batch(self, data_reader, random_images, save_dir):
     valid_images, valid_annotations, valid_filenames = \
@@ -280,3 +306,18 @@ class Segment:
 
     for idx in range(total_count):
       self.visualize_batch(data_reader, random_images, save_dir)
+
+  def close(self):
+    self.cur.close()
+    self.conn.close()
+
+  def save_loss_to_db(self, epoch, itr, loss, dataset_reader, train_record):
+    self.cur.execute("INSERT INTO losses (experiment_id, epoch, "
+                     "iteration, loss, training, image, flip, "
+                     "rotation, size_idx, cut_x, cut_y) VALUES "
+                     "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                     (self.run_id, epoch, itr, float(loss), train_record,
+                      dataset_reader.filename['filename'], dataset_reader.flip,
+                      dataset_reader.rotation, dataset_reader.size_idx,
+                      dataset_reader.cut_x, dataset_reader.cut_y))
+    self.conn.commit()
