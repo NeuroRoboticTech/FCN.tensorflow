@@ -242,8 +242,8 @@ class Segment:
     self.sess = tf.Session()
 
     print("Setting up Saver...")
-    self.saver = tf.train.Saver()
-    self.summary_writer =  tf.summary.FileWriter(self.FLAGS.logs_dir, self.sess.graph)
+    self.saver = tf.train.Saver(keep_checkpoint_every_n_hours=1)
+    self.summary_writer = tf.summary.FileWriter(self.FLAGS.logs_dir, self.sess.graph)
 
     self.sess.run(tf.global_variables_initializer())
 
@@ -283,7 +283,7 @@ class Segment:
           print("%s ---> Validation_loss: %g, file: %s" % (datetime.datetime.now(), valid_loss,
                                                        self.validation_dataset_reader.filename['filename']))
           self.save_loss_to_db(epoch, itr, valid_loss, self.validation_dataset_reader, False)
-          # self.saver.save(self.sess, self.FLAGS.logs_dir + "model.ckpt", itr)
+          self.saver.save(self.sess, self.FLAGS.logs_dir + "model.ckpt", itr)
 
         itr += 1
 
@@ -296,6 +296,8 @@ class Segment:
       # val_accuracy_assign_op = self.val_accuracy.assign(val_accuracy_val)
       # self.sess.run([train_accuracy_assign_op, val_accuracy_assign_op])
 
+      print("Training Accuracy: %g", train_accuracy_val)
+      print("Validation Accuracy: %g", val_accuracy_val)
       print("****************** Epochs completed: " + str(epoch) + "******************")
 
   def visualize_batch(self, data_reader, random_images, save_dir):
@@ -327,6 +329,8 @@ class Segment:
 
     for idx in range(total_count):
       self.visualize_batch(data_reader, random_images, save_dir)
+
+  def visualize_error_directory(self, data_reader, save_dir):
 
   def close(self):
     self.cur.close()
