@@ -301,15 +301,8 @@ class Segment:
       print("Validation Accuracy: %g", val_accuracy_val)
       print("****************** Epochs completed: " + str(epoch) + "******************")
 
-  def visualize_batch(self, data_reader, random_images, save_dir):
-    valid_images, valid_annotations, valid_filenames = \
-      data_reader.next_batch(random_images, False)
-    pred = self.sess.run(self.pred_annotation,
-                         feed_dict={self.image: valid_images,
-                                    self.annotation: valid_annotations,
-                                    self.keep_probability: 1.0})
-    valid_annotations = np.squeeze(valid_annotations, axis=3)
-    pred = np.squeeze(pred, axis=3)
+  def save_visualized_batch_images(self, valid_images, valid_annotations,
+    valid_filenames, pred, total_accuracy, mask_errors, save_dir):
 
     itr = 0
     for img_name in valid_filenames:
@@ -322,8 +315,18 @@ class Segment:
       utils.save_image(pred[itr].astype(np.uint8),
                        self.FLAGS.logs_dir, name=os.path.join(save_dir,
                                                               img_name['filename']+"_pred"))
+      utils.save_image(mask_errors[itr].astype(np.uint8),
+                       self.FLAGS.logs_dir, name=os.path.join(save_dir,
+                                                              img_name['filename']+"_errors"))
       itr += 1
       print("Saved image: ", img_name)
+
+  def visualize_batch(self, data_reader, random_images, train_record, save_dir):
+    valid_images, valid_annotations, \
+    valid_filenames, pred, total_accuracy, mask_errors = \
+      self.calc_accuracy_for_batch(0, data_reader, random_images, train_record)
+    self.save_visualized_batch_images(valid_images, valid_annotations, valid_filenames,
+                                pred, total_accuracy, mask_errors, save_dir)
 
   def visualize_directory(self, data_reader, random_images, save_dir):
     total_count = int(len(data_reader.files) / self.FLAGS.batch_size)
@@ -335,8 +338,12 @@ class Segment:
                                 save_out, save_dir):
 
     for data_set in data_list:
-      accuracy = self.calc_accuracy_for_data_set(0, data_reader, data_set,
-                                                 train_record, save_out)
+      valid_images, valid_annotations, \
+      valid_filenames, pred, total_accuracy, mask_errors = \
+        self.calc_accuracy_for_data_set(0, data_reader, data_set,
+                                        train_record, save_out)
+      self.save_visualized_batch_images(valid_images, valid_annotations, valid_filenames,
+                                  pred, total_accuracy, mask_errors, save_dir)
 
   def close(self):
     self.cur.close()
@@ -368,7 +375,8 @@ class Segment:
     errors_height = errors[0].tolist()
     errors_width = errors[1].tolist()
     mask_errors[errors_height, errors_width] = 255
-    cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_errors.png', mask_errors)
+
+    # cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_errors.png', mask_errors)
 
     return accuracy, mask_errors
 
@@ -396,6 +404,7 @@ class Segment:
                                      pred):
     itr = 0
     total_accuracy = 0
+    mask_errors = []
     for img_name in valid_filenames:
       # Using int16 here so I can do differences of two images.
       mask_orig = valid_annotations[itr].astype(np.int16)
@@ -403,10 +412,11 @@ class Segment:
       accuracy, mask_error = self.calc_accuracy_for_image(mask_orig, mask_pred)
       total_accuracy += accuracy
       itr += 1
+      mask_errors.append(mask_error)
       self.save_accuracy_to_db(epoch, itr, img_name['filename'],
                                accuracy, train_record, data_reader)
 
-    return total_accuracy
+    return total_accuracy, mask_errors
 
   def calc_accuracy_for_data_set(self, epoch, data_reader, data_set, train_record, save_out):
     valid_images, valid_annotations, valid_filenames = \
@@ -420,13 +430,16 @@ class Segment:
     valid_annotations = np.squeeze(valid_annotations, axis=3)
     pred = np.squeeze(pred, axis=3)
 
-    return self.calc_accuracy_for_batch_images(epoch, data_reader, train_record,
-                                               valid_images, valid_annotations,
-                                               valid_filenames, pred)
+    total_accuracy, mask_errors = \
+      self.calc_accuracy_for_batch_images(epoch, data_reader, train_record,
+                                          valid_images, valid_annotations,
+                                          valid_filenames, pred)
+    return valid_images, valid_annotations, \
+           valid_filenames, pred, total_accuracy, mask_errors
 
-  def calc_accuracy_for_batch(self, epoch, data_reader, train_record):
+  def calc_accuracy_for_batch(self, epoch, data_reader, random_images, train_record):
     valid_images, valid_annotations, valid_filenames = \
-      data_reader.next_batch(True, False)
+      data_reader.next_batch(random_images, False)
     pred = self.sess.run(self.pred_annotation,
                          feed_dict={self.image: valid_images,
                                     self.annotation: valid_annotations,
@@ -434,9 +447,12 @@ class Segment:
     valid_annotations = np.squeeze(valid_annotations, axis=3)
     pred = np.squeeze(pred, axis=3)
 
-    return self.calc_accuracy_for_batch_images(epoch, data_reader, train_record,
-                                               valid_images, valid_annotations,
-                                               valid_filenames, pred)
+    total_accuracy, mask_errors = \
+      self.calc_accuracy_for_batch_images(epoch, data_reader, train_record,
+                                          valid_images, valid_annotations,
+                                          valid_filenames, pred), pred
+    return valid_images, valid_annotations, \
+           valid_filenames, pred, total_accuracy, mask_errors
 
   def calc_accuracies_for_images(self, epoch, data_reader, train_record):
 
