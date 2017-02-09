@@ -5,7 +5,7 @@ import tensorflow as tf
 FLAGS = tf.flags.FLAGS
 tf.flags.DEFINE_integer("batch_size", "1", "batch size for training")
 tf.flags.DEFINE_string("logs_dir", "F:/tmp/FCN/", "path to logs directory")
-tf.flags.DEFINE_string("data_dir", "F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/", "path to dataset")
+tf.flags.DEFINE_string("data_dir", "F:/Projects/FCN_tensorflow/data/Data_zoo/Weed_Errors/", "path to dataset")
 tf.flags.DEFINE_float("learning_rate", "1e-4", "Learning rate for Adam Optimizer")
 tf.flags.DEFINE_string("model_dir", "F:/Projects/FCN_tensorflow/data/Model_zoo/", "Path to vgg model mat")
 tf.flags.DEFINE_bool('debug', "False", "Debug mode: True/ False")
@@ -66,14 +66,22 @@ val_data = [['P1070113', False, -7, 6, 0, 354],
             ['P1070189', True, 4, 6, 0, 535],
             ['P1100008', False, 8, 4, 662, 219]
             ]
+
+# test = np.arange(300).reshape(10, 10, 3)
+# print(test)
+
+# indices = [[0, 4, 6, 8],
+#           [0, 4, 6, 8]]
+
+# test[indices[0], indices[1], 2] = 255
+
 def main(argv=None):
-  segment = FCN.Segment(True)
+  segment = FCN.Segment()
   segment.init_network(False)
 
-
   segment.visualize_error_directory(
-    segment.validation_dataset_reader, False,
-    "F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/predictions")
+    segment.validation_dataset_reader, val_data, True, True,
+    "F:/Projects/FCN_tensorflow/data/Data_zoo/Weed_Errors/errors/validation")
   segment.close()
 
 if __name__ == "__main__":

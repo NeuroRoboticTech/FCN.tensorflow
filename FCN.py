@@ -10,6 +10,7 @@ from six.moves import xrange
 import time
 import os
 import psycopg2
+import cv2
 
 MODEL_URL = 'http://www.vlfeat.org/matconvnet/models/beta16/imagenet-vgg-verydeep-19.mat'
 
@@ -175,7 +176,7 @@ class Segment:
     self.cur = self.conn.cursor()
     self.cur.execute("INSERT INTO experiment (name, description) VALUES (%s, %s)",
                      (self.run_name, self.run_descr))
-    self.cur.execute("SELECT id FROM experiment where name=%s;", (self.run_name, ))
+    self.cur.execute("SELECT MAX(id) FROM experiment;")
     r = self.cur.fetchone()
     self.run_id = int(r[0])
     self.conn.commit()
@@ -330,7 +331,12 @@ class Segment:
     for idx in range(total_count):
       self.visualize_batch(data_reader, random_images, save_dir)
 
-  def visualize_error_directory(self, data_reader, save_dir):
+  def visualize_error_directory(self, data_reader, data_list, train_record,
+                                save_out, save_dir):
+
+    for data_set in data_list:
+      accuracy = self.calc_accuracy_for_data_set(0, data_reader, data_set,
+                                                 train_record, save_out)
 
   def close(self):
     self.cur.close()
@@ -358,7 +364,13 @@ class Segment:
     pixels_incorrect = len(errors[0])
     accuracy = float(mask_orig.size - pixels_incorrect)/float(mask_orig.size) * 100.0
 
-    return accuracy
+    mask_errors = np.zeros(mask_orig.shape, np.uint8)
+    errors_height = errors[0].tolist()
+    errors_width = errors[1].tolist()
+    mask_errors[errors_height, errors_width] = 255
+    cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_errors.png', mask_errors)
+
+    return accuracy, mask_errors
 
   def save_accuracy_to_db(self, epoch, itr, img_name,
                           accuracy, train_record, data_reader):
@@ -379,6 +391,39 @@ class Segment:
                      (self.run_id, epoch, float(avg_accuracy), train_record))
     self.conn.commit()
 
+  def calc_accuracy_for_batch_images(self, epoch, data_reader, train_record,
+                                     valid_images, valid_annotations, valid_filenames,
+                                     pred):
+    itr = 0
+    total_accuracy = 0
+    for img_name in valid_filenames:
+      # Using int16 here so I can do differences of two images.
+      mask_orig = valid_annotations[itr].astype(np.int16)
+      mask_pred = pred[itr].astype(np.int16)
+      accuracy, mask_error = self.calc_accuracy_for_image(mask_orig, mask_pred)
+      total_accuracy += accuracy
+      itr += 1
+      self.save_accuracy_to_db(epoch, itr, img_name['filename'],
+                               accuracy, train_record, data_reader)
+
+    return total_accuracy
+
+  def calc_accuracy_for_data_set(self, epoch, data_reader, data_set, train_record, save_out):
+    valid_images, valid_annotations, valid_filenames = \
+      data_reader.next_batch_from_list(data_set[0], data_set[1], data_set[2],
+                                       data_set[3], data_set[4], data_set[5],
+                                       save_out)
+    pred = self.sess.run(self.pred_annotation,
+                         feed_dict={self.image: valid_images,
+                                    self.annotation: valid_annotations,
+                                    self.keep_probability: 1.0})
+    valid_annotations = np.squeeze(valid_annotations, axis=3)
+    pred = np.squeeze(pred, axis=3)
+
+    return self.calc_accuracy_for_batch_images(epoch, data_reader, train_record,
+                                               valid_images, valid_annotations,
+                                               valid_filenames, pred)
+
   def calc_accuracy_for_batch(self, epoch, data_reader, train_record):
     valid_images, valid_annotations, valid_filenames = \
       data_reader.next_batch(True, False)
@@ -389,19 +434,9 @@ class Segment:
     valid_annotations = np.squeeze(valid_annotations, axis=3)
     pred = np.squeeze(pred, axis=3)
 
-    itr = 0
-    total_accuracy = 0
-    for img_name in valid_filenames:
-      # Using int16 here so I can do differences of two images.
-      mask_orig = valid_annotations[itr].astype(np.int16)
-      mask_pred = pred[itr].astype(np.int16)
-      accuracy = self.calc_accuracy_for_image(mask_orig, mask_pred)
-      total_accuracy += accuracy
-      itr += 1
-      self.save_accuracy_to_db(epoch, itr, img_name['filename'],
-                               accuracy, train_record, data_reader)
-
-    return total_accuracy
+    return self.calc_accuracy_for_batch_images(epoch, data_reader, train_record,
+                                               valid_images, valid_annotations,
+                                               valid_filenames, pred)
 
   def calc_accuracies_for_images(self, epoch, data_reader, train_record):
 
