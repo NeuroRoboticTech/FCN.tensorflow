@@ -452,7 +452,7 @@ class Segment:
     total_accuracy, mask_errors = \
       self.calc_accuracy_for_batch_images(epoch, data_reader, train_record,
                                           valid_images, valid_annotations,
-                                          valid_filenames, pred), pred
+                                          valid_filenames, pred)
     return valid_images, valid_annotations, \
            valid_filenames, pred, total_accuracy, mask_errors
 
