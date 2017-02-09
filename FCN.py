@@ -328,11 +328,11 @@ class Segment:
     self.save_visualized_batch_images(valid_images, valid_annotations, valid_filenames,
                                 pred, total_accuracy, mask_errors, save_dir)
 
-  def visualize_directory(self, data_reader, random_images, save_dir):
+  def visualize_directory(self, data_reader, random_images, train_record, save_dir):
     total_count = int(len(data_reader.files) / self.FLAGS.batch_size)
 
     for idx in range(total_count):
-      self.visualize_batch(data_reader, random_images, save_dir)
+      self.visualize_batch(data_reader, random_images, train_record, save_dir)
 
   def visualize_error_directory(self, data_reader, data_list, train_record,
                                 save_out, save_dir):
@@ -346,6 +346,8 @@ class Segment:
                                   pred, total_accuracy, mask_errors, save_dir)
 
   def close(self):
+    self.train_dataset_reader.exit_thread = True
+    self.validation_dataset_reader.exit_thread = True
     self.cur.close()
     self.conn.close()
 
@@ -376,7 +378,7 @@ class Segment:
     errors_width = errors[1].tolist()
     mask_errors[errors_height, errors_width] = 255
 
-    # cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_errors.png', mask_errors)
+    cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_errors.png', mask_errors)
 
     return accuracy, mask_errors
 

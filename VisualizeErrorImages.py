@@ -67,13 +67,6 @@ val_data = [['P1070113', False, -7, 6, 0, 354],
             ['P1100008', False, 8, 4, 662, 219]
             ]
 
-# test = np.arange(300).reshape(10, 10, 3)
-# print(test)
-
-# indices = [[0, 4, 6, 8],
-#           [0, 4, 6, 8]]
-
-# test[indices[0], indices[1], 2] = 255
 
 def main(argv=None):
   segment = FCN.Segment()
