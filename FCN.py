@@ -227,7 +227,7 @@ class Segment:
     image_options = {'resize': self.image_resize,
                      'image_height': self.image_height,
                      'image_width': self.image_width}
-    if self.FLAGS.mode == 'train':
+    if self.FLAGS.mode == 'train' or self.FLAGS.mode == 'visualize':
         self.train_dataset_reader = dataset.BatchDatset(
           self.train_records, self.FLAGS.batch_size, image_options)
         self.train_dataset_reader.start()
@@ -346,8 +346,12 @@ class Segment:
                                   pred, total_accuracy, mask_errors, save_dir)
 
   def close(self):
-    self.train_dataset_reader.exit_thread = True
-    self.validation_dataset_reader.exit_thread = True
+    if self.train_dataset_reader is not None:
+      self.train_dataset_reader.exit_thread = True
+
+    if self.validation_dataset_reader is not None:
+      self.validation_dataset_reader.exit_thread = True
+
     self.cur.close()
     self.conn.close()
 

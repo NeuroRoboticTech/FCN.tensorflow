@@ -15,9 +15,15 @@ tf.flags.DEFINE_string('mode', "visualize", "Mode train/ test/ visualize")
 def main(argv=None):
   segment = FCN.Segment(True)
   segment.init_network(False)
+
   segment.visualize_directory(
-    segment.validation_dataset_reader, False, False,
-    "F:/Projects/FCN_tensorflow/data/Data_zoo/Weed_errors/errors/validation")
+    segment.train_dataset_reader, False, False,
+    "F:/Projects/FCN_tensorflow/data/Data_zoo/Weed_errors/errors/training")
+
+  # segment.visualize_directory(
+  #   segment.validation_dataset_reader, False, False,
+  #   "F:/Projects/FCN_tensorflow/data/Data_zoo/Weed_errors/errors/validation")
+
   segment.close()
 
 if __name__ == "__main__":
