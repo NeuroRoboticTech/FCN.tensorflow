@@ -138,6 +138,13 @@ class BatchDatset (threading.Thread):
       if size_idx >= img_width_multiple:  # Give larger image a greater chance of being picked.
         size_idx = img_width_multiple
 
+      if size_idx < 5:
+        non_zero_annot = np.where(annot != 0)
+        non_zero_annot_count = len(non_zero_annot[0])
+        non_zero_perc = float(non_zero_annot_count)/float(annot.size)
+        if non_zero_perc > 0.5:
+          size_idx = 6
+
       final_img, final_annot = self._transform_img(img, annot, save_out, flip, rotate_deg, size_idx, -1, -1)
       return final_img, final_annot
 

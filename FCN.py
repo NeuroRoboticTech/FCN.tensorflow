@@ -18,7 +18,7 @@ MODEL_URL = 'http://www.vlfeat.org/matconvnet/models/beta16/imagenet-vgg-verydee
 class Segment:
 
   max_iterations = int(1e5 + 1)
-  max_epochs = 100
+  max_epochs = 2
   num_of_classes = 255
   image_resize = False
   image_width = 672
@@ -289,8 +289,8 @@ class Segment:
         itr += 1
 
       # Calculate accuracies for all validation images.
-      train_accuracy_val = self.calc_accuracies_for_images(epoch, self.train_dataset_reader, True)
-      val_accuracy_val = self.calc_accuracies_for_images(epoch, self.validation_dataset_reader, False)
+      train_accuracy_val = self.calc_accuracies_for_images(epoch, self.train_dataset_reader, True, True)
+      val_accuracy_val = self.calc_accuracies_for_images(epoch, self.validation_dataset_reader, True, False)
 
       # Not set our tf vars for accuracy and update them.
       # train_accuracy_assign_op = self.train_accuracy.assign(train_accuracy_val)
@@ -460,13 +460,15 @@ class Segment:
     return valid_images, valid_annotations, \
            valid_filenames, pred, total_accuracy, mask_errors
 
-  def calc_accuracies_for_images(self, epoch, data_reader, train_record):
+  def calc_accuracies_for_images(self, epoch, data_reader, random_images, train_record):
 
     total_count = int(len(data_reader.files) / self.FLAGS.batch_size)
 
     total_accuracy = 0.0
     for idx in range(total_count):
-      accuracy = self.calc_accuracy_for_batch(epoch, data_reader, train_record)
+      valid_images, valid_annotations, \
+      valid_filenames, pred, accuracy, mask_errors = \
+        self.calc_accuracy_for_batch(epoch, data_reader, random_images, train_record)
       total_accuracy += accuracy
 
     avg_accuracy = float(total_accuracy / total_count)
