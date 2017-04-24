@@ -484,3 +484,10 @@ class Segment:
 
     return avg_accuracy
 
+  def generate_mask_for_unlabeled_image(self, img):
+    pred = self.sess.run(self.pred_annotation,
+                         feed_dict={self.image: img,
+                                    self.annotation: None,
+                                    self.keep_probability: 1.0})
+    pred = np.squeeze(pred, axis=3)
+    return pred
