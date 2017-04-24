@@ -45,16 +45,18 @@ class Segment:
   train_accuracy = None
   val_accuracy = None
 
+  db_logging = True
   conn = None
   cur = None
   run_name = "run1"
   run_descr = "test"
   run_id = 0
 
-  def __init__(self, resize=False, width=672, height=380):
+  def __init__(self, resize=False, width=672, height=380, db_logging=True):
     self.image_resize = resize
     self.image_width = width
     self.image_height = height
+    self.db_logging = db_logging
 
   def vgg_net(self, weights, image):
     layers = (
@@ -172,14 +174,15 @@ class Segment:
 
   def init_network(self, random_filenames):
     # Create DB entries.
-    self.conn = psycopg2.connect("dbname=fcn_rgb user=dnn_user password=pgpswd")
-    self.cur = self.conn.cursor()
-    self.cur.execute("INSERT INTO experiment (name, description) VALUES (%s, %s)",
+    if self.db_logging:
+      self.conn = psycopg2.connect("dbname=fcn_rgb user=dnn_user password=pgpswd")
+      self.cur = self.conn.cursor()
+      self.cur.execute("INSERT INTO experiment (name, description) VALUES (%s, %s)",
                      (self.run_name, self.run_descr))
-    self.cur.execute("SELECT MAX(id) FROM experiment;")
-    r = self.cur.fetchone()
-    self.run_id = int(r[0])
-    self.conn.commit()
+      self.cur.execute("SELECT MAX(id) FROM experiment;")
+      r = self.cur.fetchone()
+      self.run_id = int(r[0])
+      self.conn.commit()
 
     # create newtork
     self.keep_probability = tf.placeholder(tf.float32, name="keep_probabilty")
@@ -248,6 +251,7 @@ class Segment:
 
     self.sess.run(tf.global_variables_initializer())
 
+    print("Restoring model.")
     ckpt = tf.train.get_checkpoint_state(self.FLAGS.logs_dir)
     if ckpt and ckpt.model_checkpoint_path:
       self.saver.restore(self.sess, ckpt.model_checkpoint_path)
@@ -352,11 +356,13 @@ class Segment:
     if self.validation_dataset_reader is not None:
       self.validation_dataset_reader.exit_thread = True
 
-    self.cur.close()
-    self.conn.close()
+    if self.db_logging:
+      self.cur.close()
+      self.conn.close()
 
   def save_loss_to_db(self, epoch, itr, loss, dataset_reader, train_record):
-    self.cur.execute("INSERT INTO losses (experiment_id, epoch, "
+    if self.db_logging:
+      self.cur.execute("INSERT INTO losses (experiment_id, epoch, "
                      "iteration, loss, training, image, flip, "
                      "rotation, size_idx, cut_x, cut_y) VALUES "
                      "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
@@ -364,7 +370,7 @@ class Segment:
                       dataset_reader.filename['filename'], dataset_reader.flip,
                       dataset_reader.rotation, dataset_reader.size_idx,
                       dataset_reader.cut_x, dataset_reader.cut_y))
-    self.conn.commit()
+      self.conn.commit()
 
   def calc_accuracy_for_image(self, mask_orig, mask_pred):
     # Find the difference between all pixel values.
@@ -388,7 +394,8 @@ class Segment:
 
   def save_accuracy_to_db(self, epoch, itr, img_name,
                           accuracy, train_record, data_reader):
-    self.cur.execute("INSERT INTO accuracies (experiment_id, epoch, "
+    if self.db_logging:
+      self.cur.execute("INSERT INTO accuracies (experiment_id, epoch, "
                      "iteration, accuracy, training, image, flip, "
                      "rotation, size_idx, cut_x, cut_y) VALUES "
                      "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
@@ -396,14 +403,15 @@ class Segment:
                       data_reader.filename['filename'], data_reader.flip,
                       data_reader.rotation, data_reader.size_idx,
                       data_reader.cut_x, data_reader.cut_y))
-    self.conn.commit()
+      self.conn.commit()
 
   def save_avg_accuracy_to_db(self, epoch, avg_accuracy, train_record):
-    self.cur.execute("INSERT INTO average_accuracies (experiment_id, epoch, "
+    if self.db_logging:
+      self.cur.execute("INSERT INTO average_accuracies (experiment_id, epoch, "
                      "accuracy, training) VALUES "
                      "(%s, %s, %s, %s)",
                      (self.run_id, epoch, float(avg_accuracy), train_record))
-    self.conn.commit()
+      self.conn.commit()
 
   def calc_accuracy_for_batch_images(self, epoch, data_reader, train_record,
                                      valid_images, valid_annotations, valid_filenames,
