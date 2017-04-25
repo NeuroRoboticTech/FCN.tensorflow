@@ -139,6 +139,7 @@ class BatchDatset (threading.Thread):
         size_idx = img_width_multiple
 
       if size_idx < 5:
+        # Check to make sure that more than half of the image is not zeros
         non_zero_annot = np.where(annot != 0)
         non_zero_annot_count = len(non_zero_annot[0])
         non_zero_perc = float(non_zero_annot_count)/float(annot.size)
