@@ -23,6 +23,7 @@ class Segment:
   image_resize = False
   image_width = 672
   image_height = 380
+  image_channels = 3
 
   keep_probability = None
   image = None
@@ -53,10 +54,11 @@ class Segment:
   run_descr = "test"
   run_id = 0
 
-  def __init__(self, resize=False, width=672, height=380, db_logging=True):
+  def __init__(self, resize=False, width=672, height=380, image_channels=3, db_logging=True):
     self.image_resize = resize
     self.image_width = width
     self.image_height = height
+    self.image_channels = image_channels
     self.db_logging = db_logging
 
   def vgg_net(self, weights, image):
@@ -81,6 +83,13 @@ class Segment:
       kind = name[:4]
       if kind == 'conv':
         kernels, bias = weights[i][0][0][0][0]
+
+        if self.image_channels == 1:
+          width = kernels[0]
+          height = kernels[1]
+          in_chan = kernels[2]
+          out_chan = kernels[3]
+
         # matconvnet: weights are [width, height, in_channels, out_channels]
         # tensorflow: weights are [height, width, in_channels, out_channels]
         kernels = utils.get_variable(np.transpose(kernels, (1, 0, 2, 3)), name=name + "_w")
@@ -188,7 +197,7 @@ class Segment:
     # create newtork
     self.keep_probability = tf.placeholder(tf.float32, name="keep_probabilty")
     self.image = tf.placeholder(tf.float32,
-               shape=[None, self.image_height, self.image_width, 3], name="input_image")
+               shape=[None, self.image_height, self.image_width, self.image_channels], name="input_image")
     self.annotation = tf.placeholder(tf.int32,
                 shape=[None, self.image_height, self.image_width, 1], name="annotation")
 
@@ -230,7 +239,8 @@ class Segment:
     print("Setting up dataset reader")
     image_options = {'resize': self.image_resize,
                      'image_height': self.image_height,
-                     'image_width': self.image_width}
+                     'image_width': self.image_width,
+                     'image_channels': self.image_channels}
     if self.FLAGS.mode == 'train' or self.FLAGS.mode == 'visualize':
         self.train_dataset_reader = dataset.BatchDatset(
           self.train_records, self.FLAGS.batch_size, image_options)
