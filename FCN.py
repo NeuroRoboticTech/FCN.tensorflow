@@ -18,11 +18,12 @@ MODEL_URL = 'http://www.vlfeat.org/matconvnet/models/beta16/imagenet-vgg-verydee
 class Segment:
 
   max_iterations = int(1e5 + 1)
-  max_epochs = 2
+  max_epochs = 10
   num_of_classes = 255
   image_resize = False
   image_width = 672
   image_height = 380
+
   keep_probability = None
   image = None
   annotation = None

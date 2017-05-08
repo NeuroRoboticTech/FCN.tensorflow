@@ -7,6 +7,7 @@ import cv2
 import threading
 import time
 import random
+import sys
 
 def rotate_img(img, angle, center=None, scale=1.0):
   # grab the dimensions of the image
@@ -96,6 +97,7 @@ class BatchDatset (threading.Thread):
       self.__channels = False
       self.annotations = np.array([self._transform(filename['annotation'])
                                    for filename in self.image_files])
+
       # print (self.images.shape)
       # print (self.annotations.shape)
 
@@ -134,7 +136,11 @@ class BatchDatset (threading.Thread):
       # to the input image.
       img_width_multiple = int(img.shape[1] / self.final_width)
       # Randomly choose a size to use
-      size_idx = np.random.randint(3, img_width_multiple + 2)
+      if(img_width_multiple + 2 > 3):
+        size_idx = np.random.randint(3, img_width_multiple + 2)
+      else:
+        size_idx = 1
+
       if size_idx >= img_width_multiple:  # Give larger image a greater chance of being picked.
         size_idx = img_width_multiple
 
@@ -144,7 +150,10 @@ class BatchDatset (threading.Thread):
         non_zero_annot_count = len(non_zero_annot[0])
         non_zero_perc = float(non_zero_annot_count)/float(annot.size)
         if non_zero_perc > 0.5:
-          size_idx = 6
+          size_idx = img_width_multiple
+
+      if size_idx != 1:
+        size_idx = 1
 
       final_img, final_annot = self._transform_img(img, annot, save_out, flip, rotate_deg, size_idx, -1, -1)
       return final_img, final_annot
@@ -178,12 +187,12 @@ class BatchDatset (threading.Thread):
       # we will begin the cut.
       area_width = img.shape[1] - cut_width
       area_height = img.shape[0] - cut_height
-      if area_width > 0:
+      if area_width > 1:
         cut_x = np.random.randint(0, area_width-1)
       else:
         cut_x = 0
 
-      if area_height > 0:
+      if area_height > 1:
         cut_y = np.random.randint(0, area_height - 1)
       else:
         cut_y = 0
@@ -201,6 +210,11 @@ class BatchDatset (threading.Thread):
       # smaller section.
       cut_img = new_img[cut_y:(cut_y+cut_height), cut_x:(cut_x+cut_width)]
       cut_annot = new_annot[cut_y:(cut_y+cut_height), cut_x:(cut_x+cut_width)]
+
+      # if cut_img.shape[0] != 340:
+      #   raise ValueError("Image height incorrect: " + str(cut_img.shape[0]))
+      # if cut_img.shape[1] != 512:
+      #   raise ValueError("Image width incorrect: " + str(cut_img.shape[1]))
 
       #cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/cut.jpg', cut_img)
 
