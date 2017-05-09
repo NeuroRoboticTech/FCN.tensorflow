@@ -84,11 +84,10 @@ class Segment:
       if kind == 'conv':
         kernels, bias = weights[i][0][0][0][0]
 
-        if self.image_channels == 1:
-          width = kernels[0]
-          height = kernels[1]
-          in_chan = kernels[2]
-          out_chan = kernels[3]
+        if self.image_channels == 1 and kernels.shape[2] == 3:
+          # If we are using a single channel the remove the other two
+          # channels from the weights.
+          kernels = kernels[:, :, 0, :].reshape((3, 3, 1, 64))
 
         # matconvnet: weights are [width, height, in_channels, out_channels]
         # tensorflow: weights are [height, width, in_channels, out_channels]
@@ -116,6 +115,9 @@ class Segment:
     model_data = utils.get_model_data(self.FLAGS.model_dir, MODEL_URL)
 
     mean = model_data['normalization'][0][0][0]
+    if self.image_channels == 1:
+      mean = mean[:, :, [0]]
+
     mean_pixel = np.mean(mean, axis=(0, 1))
 
     weights = np.squeeze(model_data['layers'])

@@ -102,9 +102,14 @@ class BatchDatset (threading.Thread):
       # print (self.annotations.shape)
 
     def _transform(self, filename):
-        image = misc.imread(filename)
+        if self.__channels and self.image_options['image_channels'] == 1:
+          greyscale = True
+        else:
+          greyscale = False
+
+        image = misc.imread(filename, flatten=greyscale)
         # print("Read image: ", filename)
-        if self.__channels and len(image.shape) < 3:  # make sure images are of shape(h,w,3)
+        if self.__channels and not greyscale and len(image.shape) < 3:  # make sure images are of shape(h,w,3)
             image = np.array([image for i in range(3)])
 
         if self.image_options.get("resize", False) and self.image_options["resize"]:
@@ -114,6 +119,9 @@ class BatchDatset (threading.Thread):
                                          [resize_height, resize_width], interp='nearest')
         else:
             resize_image = image
+
+        if greyscale:
+          resize_image = resize_image.reshape((resize_height, resize_width, 1))
 
         return np.array(resize_image)
 
@@ -318,7 +326,9 @@ class BatchDatset (threading.Thread):
           annot_batch_list.append(annot_trans)
           idx += 1
 
-        img_batch = np.array(img_batch_list)
+        img_batch = np.array(img_batch_list).reshape(
+            (len(img_batch_list), self.final_height, self.final_width, self.image_options['image_channels']))
+
         annot_batch = np.array(annot_batch_list).reshape(
           (len(annot_batch_list), self.final_height, self.final_width, 1))
 
