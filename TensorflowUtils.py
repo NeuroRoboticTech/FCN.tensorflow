@@ -54,6 +54,12 @@ def save_image(image, save_dir, name, mean=None):
     """
     if mean:
         image = unprocess_image(image, mean)
+
+    # if this image only has a single channel the reshape it so
+    # it can be saved with misc
+    if len(image.shape) == 3 and image.shape[2] == 1:
+        image = image.reshape((image.shape[0], image.shape[1]))
+
     misc.imsave(os.path.join(save_dir, name + ".png"), image)
 
 
