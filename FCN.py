@@ -10,7 +10,7 @@ from six.moves import xrange
 import time
 import os
 import psycopg2
-import cv2
+import scipy.misc as misc
 
 MODEL_URL = 'http://www.vlfeat.org/matconvnet/models/beta16/imagenet-vgg-verydeep-19.mat'
 
@@ -53,12 +53,14 @@ class Segment:
   run_name = "run1"
   run_descr = "test"
   run_id = 0
+  force_size_idx = -1
 
-  def __init__(self, resize=False, width=672, height=380, image_channels=3, db_logging=True):
+  def __init__(self, resize=False, width=672, height=380, image_channels=3, force_size_idx = -1, db_logging=True):
     self.image_resize = resize
     self.image_width = width
     self.image_height = height
     self.image_channels = image_channels
+    self.force_size_idx = force_size_idx
     self.db_logging = db_logging
 
   def vgg_net(self, weights, image):
@@ -276,7 +278,7 @@ class Segment:
     for epoch in xrange(self.max_epochs):
       for epoch_itr in xrange(len(self.train_records)):
         train_images, train_annotations, train_image_names = \
-          self.train_dataset_reader.next_batch(True, False)
+          self.train_dataset_reader.next_batch(True, False, self.force_size_idx)
         feed_dict = {self.image: train_images,
                      self.annotation: train_annotations,
                      self.keep_probability: 0.85}
@@ -293,7 +295,7 @@ class Segment:
 
         if itr % 500 == 0:
           valid_images, valid_annotations, val_image_names = \
-            self.validation_dataset_reader.next_batch(True, True)
+            self.validation_dataset_reader.next_batch(True, True, self.force_size_idx)
           valid_loss, val_summary_str = self.sess.run([self.loss, self.val_loss_sum_op],
                 feed_dict={self.image: valid_images, self.annotation: valid_annotations,
                            self.keep_probability: 1.0})
@@ -401,7 +403,7 @@ class Segment:
     errors_width = errors[1].tolist()
     mask_errors[errors_height, errors_width] = 255
 
-    cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_errors.png', mask_errors)
+    misc.imsave('D:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_errors.png', mask_errors)
 
     return accuracy, mask_errors
 
@@ -466,7 +468,7 @@ class Segment:
 
   def calc_accuracy_for_batch(self, epoch, data_reader, random_images, train_record):
     valid_images, valid_annotations, valid_filenames = \
-      data_reader.next_batch(random_images, False)
+      data_reader.next_batch(random_images, False, self.force_size_idx)
     pred = self.sess.run(self.pred_annotation,
                          feed_dict={self.image: valid_images,
                                     self.annotation: valid_annotations,

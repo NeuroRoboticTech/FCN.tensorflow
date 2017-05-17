@@ -14,7 +14,7 @@ tf.flags.DEFINE_string('mode', "visualize", "Mode train/ test/ visualize")
 
 
 def main(argv=None):
-  segment = FCN.Segment(False, 672, 380, 3, False)
+  segment = FCN.Segment(False, 672, 380, 3, -1, False)
   segment.init_network(False)
 
   #segment.visualize_directory(

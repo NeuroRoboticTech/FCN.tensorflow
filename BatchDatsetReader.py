@@ -3,7 +3,6 @@ Code ideas from https://github.com/Newmu/dcgan and tensorflow mnist dataset read
 """
 import numpy as np
 import scipy.misc as misc
-import cv2
 import threading
 import time
 import random
@@ -19,8 +18,15 @@ def rotate_img(img, angle, center=None, scale=1.0):
     center = (w / 2, h / 2)
 
   # perform the rotation
-  M = cv2.getRotationMatrix2D(center, angle, scale)
-  rotated = cv2.warpAffine(img, M, (w, h))
+  if scale != 1.0:
+    scaled = misc.imresize(img, scale)
+  else:
+    scaled = img
+
+  rotated = misc.imrotate(scaled, angle)
+
+  # misc.imsave('D:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/before_rotate_img.jpg', img)
+  # misc.imsave('D:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/after_rotate_img.jpg', rotated)
 
   # return the rotated image
   return rotated
@@ -132,7 +138,7 @@ class BatchDatset (threading.Thread):
         self.batch_offset = offset
 
 
-    def _random_transform(self, img, annot, save_out):
+    def _random_transform(self, img, annot, save_out, force_size_idx):
       if np.random.randint(0, 100) > 50:
         flip = True
       else:
@@ -140,28 +146,28 @@ class BatchDatset (threading.Thread):
 
       rotate_deg = int(np.random.normal(0, 8))
 
-      # Find out how many multiples the final image is compared
-      # to the input image.
-      img_width_multiple = int(img.shape[1] / self.final_width)
-      # Randomly choose a size to use
-      if(img_width_multiple + 2 > 3):
-        size_idx = np.random.randint(3, img_width_multiple + 2)
+      if force_size_idx > 0:
+        size_idx = force_size_idx
       else:
-        size_idx = 1
+        # Find out how many multiples the final image is compared
+        # to the input image.
+        img_width_multiple = int(img.shape[1] / self.final_width)
+        # Randomly choose a size to use
+        if(img_width_multiple + 2 > 3):
+          size_idx = np.random.randint(3, img_width_multiple + 2)
+        else:
+          size_idx = 1
 
-      if size_idx >= img_width_multiple:  # Give larger image a greater chance of being picked.
-        size_idx = img_width_multiple
-
-      if size_idx < 5:
-        # Check to make sure that more than half of the image is not zeros
-        non_zero_annot = np.where(annot != 0)
-        non_zero_annot_count = len(non_zero_annot[0])
-        non_zero_perc = float(non_zero_annot_count)/float(annot.size)
-        if non_zero_perc > 0.5:
+        if size_idx >= img_width_multiple:  # Give larger image a greater chance of being picked.
           size_idx = img_width_multiple
 
-      if size_idx != 1:
-        size_idx = 1
+        if size_idx < 5:
+          # Check to make sure that more than half of the image is not zeros
+          non_zero_annot = np.where(annot != 0)
+          non_zero_annot_count = len(non_zero_annot[0])
+          non_zero_perc = float(non_zero_annot_count)/float(annot.size)
+          if non_zero_perc > 0.5:
+            size_idx = img_width_multiple
 
       final_img, final_annot = self._transform_img(img, annot, save_out, flip, rotate_deg, size_idx, -1, -1)
       return final_img, final_annot
@@ -171,8 +177,14 @@ class BatchDatset (threading.Thread):
 
       # Flip the image around the vertical axis randomly
       if flip:
-        new_img = cv2.flip(img, 1)
-        new_annot = cv2.flip(annot, 1)
+        new_img = np.fliplr(img)
+        new_annot = np.fliplr(annot)
+
+        # misc.imsave('D:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/before_img.jpg', img)
+        # misc.imsave('D:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/flipped_img.jpg', new_img)
+        # misc.imsave('D:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/before_mask.png', annot)
+        # misc.imsave('D:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/flipped_mask.png', new_annot)
+
         self.flip = True
       else:
         new_img = img
@@ -236,13 +248,14 @@ class BatchDatset (threading.Thread):
       #cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/cut_bright.jpg', cut_img)
 
       # Last, resize the cut images to match the final image size.
-      final_img = cv2.resize(cut_img, (self.final_width, self.final_height), interpolation=cv2.INTER_AREA)
+      final_img = misc.imresize(cut_img, (self.final_height, self.final_width))
+      # final_img = cv2.resize(cut_img, (self.final_width, self.final_height), interpolation=cv2.INTER_AREA)
       final_annot = cut_annot[::size_idx, ::size_idx]
 
       if save_out:
-        cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_orig.jpg', img)
-        cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_img.jpg', final_img)
-        cv2.imwrite('F:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_mask.png', final_annot)
+        misc.imsave('D:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_orig.jpg', img)
+        misc.imsave('D:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_img.jpg', final_img)
+        misc.imsave('D:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_mask.png', final_annot)
 
       return final_img, final_annot
 
@@ -289,7 +302,7 @@ class BatchDatset (threading.Thread):
         if len(self.images) < self.batch_size:
           self.load_next_images = True
 
-    def next_batch(self, random_mod, save_out):
+    def next_batch(self, random_mod, save_out, force_size_idx=-1):
 
       # Wait for the images to be loaded if they are not already in place
       self.wait_for_images()
@@ -317,7 +330,7 @@ class BatchDatset (threading.Thread):
           self.filename = self.image_files[idx]
 
           if random_mod:
-            img_trans, annot_trans = self._random_transform(img, annot, save_out)
+            img_trans, annot_trans = self._random_transform(img, annot, save_out, force_size_idx)
           else:
             img_trans = img
             annot_trans = annot
