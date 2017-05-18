@@ -167,7 +167,7 @@ class Segment:
       fuse_2 = tf.add(conv_t2, image_net["pool3"], name="fuse_2")
 
       shape = tf.shape(image)
-      deconv_shape3 = tf.pack([shape[0], shape[1], shape[2], self.num_of_classes])
+      deconv_shape3 = tf.stack([shape[0], shape[1], shape[2], self.num_of_classes])
       W_t3 = utils.weight_variable([16, 16, self.num_of_classes, deconv_shape2[3].value], name="W_t3")
       b_t3 = utils.bias_variable([self.num_of_classes], name="b_t3")
       conv_t3 = utils.conv2d_transpose_strided(fuse_2, W_t3, b_t3, output_shape=deconv_shape3, stride=8)
@@ -210,9 +210,11 @@ class Segment:
     tf.summary.image("ground_truth", tf.cast(self.annotation, tf.uint8), max_outputs=2)
     tf.summary.image("pred_annotation", tf.cast(self.pred_annotation, tf.uint8), max_outputs=2)
     self.loss = tf.reduce_mean((
-      tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits,
-                                                     tf.squeeze(self.annotation, squeeze_dims=[3]),
+      tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.logits,
+                                                     labels=tf.squeeze(self.annotation, squeeze_dims=[3]),
                                                      name="entropy")))
+
+
     tf.summary.scalar("training_loss", self.loss)
 
     # Define the train/val accuracy variables.
