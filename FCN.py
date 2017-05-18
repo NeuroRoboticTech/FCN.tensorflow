@@ -502,9 +502,21 @@ class Segment:
     return avg_accuracy
 
   def generate_mask_for_unlabeled_image(self, img):
+
+    channels = 1
+    if len(img.shape) > 2:
+        channels = img.shape[2]
+
+    img_batch = np.array(img).reshape(
+      (1, img.shape[0], img.shape[1], channels))
+
+    blank_mask = np.zeros((1, img.shape[0], img.shape[1], 1))
+
     pred = self.sess.run(self.pred_annotation,
-                         feed_dict={self.image: img,
-                                    self.annotation: None,
+                         feed_dict={self.image: img_batch,
+                                    self.annotation: blank_mask,
                                     self.keep_probability: 1.0})
     pred = np.squeeze(pred, axis=3)
+    pred = np.squeeze(pred, axis=0)
+    # pred = np.reshape(pred.shape[1], pred.shape[2])
     return pred

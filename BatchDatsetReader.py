@@ -332,8 +332,10 @@ class BatchDatset (threading.Thread):
           if random_mod:
             img_trans, annot_trans = self._random_transform(img, annot, save_out, force_size_idx)
           else:
-            img_trans = img
-            annot_trans = annot
+            # If not random modifying then we need to resize the image and annotation to
+            # be the correct size.
+            img_trans = misc.imresize(img, (self.final_height, self.final_width))
+            annot_trans = misc.imresize(annot, (self.final_height, self.final_width), interp='nearest')
 
           img_batch_list.append(img_trans)
           annot_batch_list.append(annot_trans)
