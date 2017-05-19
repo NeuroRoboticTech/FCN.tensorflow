@@ -4,7 +4,7 @@ import tensorflow as tf
 import FCN_env_vars as EnvVars
 import scipy.misc as misc
 
-project_Dir = "Weeds"
+project_Dir = "Humans"
 
 FLAGS = tf.flags.FLAGS
 tf.flags.DEFINE_integer("batch_size", "1", "batch size for training")
@@ -15,21 +15,24 @@ tf.flags.DEFINE_string("model_dir", EnvVars.data_dir + "/model_zoo", "Path to vg
 tf.flags.DEFINE_bool('debug', "False", "Debug mode: True/ False")
 tf.flags.DEFINE_string('mode', "visualize", "Mode train/ test/ visualize")
 
-image_width = 672
-image_height = 380
+image_width = 224
+image_height = 224
+image_channels = 3
+force_size_idx = 1
 
 
 def main(argv=None):
-    segment = FCN.Segment(True, 672, 380, 3, -1, False)
+    segment = FCN.Segment(True, image_width, image_height, 
+                          image_channels, force_size_idx, False)
     segment.init_network(False)
 
-    img = misc.imread('D:/Projects/FCN_Tensorflow/data/Data_Zoo/Weeds/data/images/training/P1090526.JPG')
+    img = misc.imread('/media/ubuntu/SDRoot/FCN_Tensorflow/data/Data_Zoo/Humans/data/images/training/2007_000170.jpg')
     scaled_img = misc.imresize(img, (image_height, image_width))
     mask = segment.generate_mask_for_unlabeled_image(scaled_img)
 
     segment.close()
 
-    misc.imsave('D:/Projects/FCN_Tensorflow/data/Data_Zoo/Weeds/P1090526_mask.PNG', mask)
+    misc.imsave('/media/ubuntu/SDRoot/FCN_Tensorflow/data/Data_Zoo/Humans/2007_000170_mask.png', mask)
 
 if __name__ == "__main__":
     tf.app.run()
