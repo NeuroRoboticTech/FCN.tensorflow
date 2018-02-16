@@ -13,7 +13,7 @@ DATA_URL = 'http://sceneparsing.csail.mit.edu/data/ADEChallengeData2016.zip'
 
 def read_dataset(data_dir, random_names):
     #pickle_filename = "MITSceneParsing.pickle"
-    pickle_filename = "Weeds.pickle"
+    pickle_filename = "insulators.pickle"
     pickle_filepath = os.path.join(data_dir, pickle_filename)
     if not os.path.exists(pickle_filepath):
         #utils.maybe_download_and_extract(data_dir, DATA_URL, is_zipfile=True)

@@ -189,7 +189,7 @@ class Segment:
   def init_network(self, random_filenames):
     # Create DB entries.
     if self.db_logging:
-      self.conn = psycopg2.connect("dbname=fcn_rgb user=dnn_user password=pgpswd")
+      self.conn = psycopg2.connect("dbname=FCN_Data user=postgres password=abc123")
       self.cur = self.conn.cursor()
       self.cur.execute("INSERT INTO experiment (name, description) VALUES (%s, %s)",
                      (self.run_name, self.run_descr))
