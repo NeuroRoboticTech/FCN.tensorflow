@@ -253,9 +253,9 @@ class BatchDatset (threading.Thread):
       final_annot = cut_annot[::size_idx, ::size_idx]
 
       if save_out:
-        misc.imsave('D:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_orig.jpg', img)
-        misc.imsave('D:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_img.jpg', final_img)
-        misc.imsave('D:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_mask.png', final_annot)
+        misc.imsave('final_orig.jpg', img)
+        misc.imsave('final_img.jpg', final_img)
+        misc.imsave('final_mask.png', final_annot)
 
       return final_img, final_annot
 
