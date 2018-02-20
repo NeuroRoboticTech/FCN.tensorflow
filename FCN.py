@@ -405,7 +405,7 @@ class Segment:
     errors_width = errors[1].tolist()
     mask_errors[errors_height, errors_width] = 255
 
-    misc.imsave('D:/Projects/FCN_tensorflow/data/Data_zoo/Weeds/final_errors.png', mask_errors)
+    misc.imsave('final_errors.png', mask_errors)
 
     return accuracy, mask_errors
 
