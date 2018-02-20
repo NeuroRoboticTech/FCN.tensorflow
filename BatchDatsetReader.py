@@ -81,7 +81,6 @@ class BatchDatset (threading.Thread):
         self.end_idx = self.batch_offset
         self.final_height = int(self.image_options["image_height"])
         self.final_width = int(self.image_options["image_width"])
-        self.final_ratio = self.final_width / self.final_height
         self.__channels = True  # Default to true
         self.allowed_mask_vals = allowed_mask_vals
 
@@ -111,8 +110,8 @@ class BatchDatset (threading.Thread):
       self.images.clear()
       self.annotations.clear()
 
-      for img, annot in images, annotations:
-        img_trans, annot_trans =  self.random_transform(img, annot)
+      for idx in range(0, len(images)):
+        img_trans, annot_trans =  self.random_transform(images[idx], annotations[idx])
         self.images.append(img_trans)
         self.annotations.append(annot_trans)
 
@@ -154,7 +153,7 @@ class BatchDatset (threading.Thread):
         self.batch_offset = offset
 
 
-    def random_transform(self, img, annot, save_out, force_size_idx, force_flip=-1, force_rot=-1000, force_cut_x=-1, force_cut_y=-1):
+    def random_transform(self, img, annot, save_out=False, force_size_idx=-1, force_flip=-1, force_rot=-1000, force_cut_x=-1, force_cut_y=-1):
       if force_flip == -1:
         if np.random.randint(0, 100) > 50:
           flip = True
@@ -343,17 +342,8 @@ class BatchDatset (threading.Thread):
           annot = self.annotations[idx]
           self.filename = self.image_files[idx]
 
-          if random_mod:
-            img_trans, annot_trans = self.random_transform(img, annot, save_out, force_size_idx, \
-                                                           force_flip, force_rot, force_cut_x, force_cut_y)
-          else:
-            # If not random modifying then we need to resize the image and annotation to
-            # be the correct size.
-            img_trans = misc.imresize(img, (self.final_height, self.final_width))
-            annot_trans = misc.imresize(annot, (self.final_height, self.final_width), interp='nearest')
-
-          img_batch_list.append(img_trans)
-          annot_batch_list.append(annot_trans)
+          img_batch_list.append(img)
+          annot_batch_list.append(annot)
           idx += 1
 
         img_batch = np.array(img_batch_list).reshape(
@@ -402,7 +392,7 @@ class BatchDatset (threading.Thread):
 
     def removeDisallowedMaskValues(self, mask):
 
-        misc.imsave('new_mask_orig.png', mask)
+        #misc.imsave('new_mask_orig.png', mask)
 
         for idx in range(1, len(self.allowed_mask_vals)):
             low_val = self.allowed_mask_vals[idx-1]

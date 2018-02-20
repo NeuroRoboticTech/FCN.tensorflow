@@ -247,15 +247,16 @@ class Segment:
                      'image_height': self.image_height,
                      'image_width': self.image_width,
                      'image_channels': self.image_channels}
+    allowed_mask_vals = [0, 128, 192]
     if self.FLAGS.mode == 'train' or self.FLAGS.mode == 'visualize':
         self.train_dataset_reader = dataset.BatchDatset(
-          self.train_records, self.FLAGS.batch_size, image_options)
+          self.train_records, self.FLAGS.batch_size, allowed_mask_vals, image_options)
         self.train_dataset_reader.start()
         # Wait for first images to load
         self.train_dataset_reader.wait_for_images()
 
     self.validation_dataset_reader = dataset.BatchDatset(
-      self.valid_records, self.FLAGS.batch_size, image_options)
+      self.valid_records, self.FLAGS.batch_size, allowed_mask_vals, image_options)
     self.validation_dataset_reader.start()
     # Wait for first images to load
     self.validation_dataset_reader.wait_for_images()
