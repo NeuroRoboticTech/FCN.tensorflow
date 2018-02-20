@@ -7,6 +7,7 @@ import threading
 import time
 import random
 import sys
+import cv2
 
 def rotate_img(img, angle, center=None, scale=1.0):
   # grab the dimensions of the image
@@ -56,7 +57,7 @@ class BatchDatset (threading.Thread):
     cut_x = 0
     cut_y = 0
 
-    def __init__(self, records_list, batch_size, image_options={}):
+    def __init__(self, records_list, batch_size, allowed_mask_vals, image_options={}):
         """
         Intialize a generic file reader with batching for list of files
         :param records_list: list of file records to read -
@@ -80,6 +81,8 @@ class BatchDatset (threading.Thread):
         self.end_idx = self.batch_offset
         self.final_height = int(self.image_options["image_height"])
         self.final_width = int(self.image_options["image_width"])
+        self.__channels = True  # Default to true
+        self.allowed_mask_vals = allowed_mask_vals
 
         self.filename = ""
         self.flip = False
@@ -98,16 +101,24 @@ class BatchDatset (threading.Thread):
 
     def _read_images_files(self):
       self.__channels = True
-      self.images = np.array([self._transform(filename['image'])
+      images = np.array([self.transform(filename['image'])
                               for filename in self.image_files])
       self.__channels = False
-      self.annotations = np.array([self._transform(filename['annotation'])
+      annotations = np.array([self.transform(filename['annotation'])
                                    for filename in self.image_files])
+
+      self.images.clear()
+      self.annotations.clear()
+
+      for idx in range(0, len(images)):
+        img_trans, annot_trans =  self.random_transform(images[idx], annotations[idx])
+        self.images.append(img_trans)
+        self.annotations.append(annot_trans)
 
       # print (self.images.shape)
       # print (self.annotations.shape)
 
-    def _transform(self, filename):
+    def transform(self, filename):
         if self.__channels and self.image_options['image_channels'] == 1:
           greyscale = True
         else:
@@ -129,6 +140,10 @@ class BatchDatset (threading.Thread):
         if greyscale:
           resize_image = resize_image.reshape((resize_height, resize_width, 1))
 
+        #image_ratio = resize_image.shape[1] / resize_image.shape[0]
+        #if image_ratio != self.final_ratio:
+        #    print("Ratio wrong")
+
         return np.array(resize_image)
 
     def get_records(self):
@@ -138,13 +153,22 @@ class BatchDatset (threading.Thread):
         self.batch_offset = offset
 
 
-    def _random_transform(self, img, annot, save_out, force_size_idx):
-      if np.random.randint(0, 100) > 50:
-        flip = True
+    def random_transform(self, img, annot, save_out=False, force_size_idx=-1, force_flip=-1, force_rot=-1000, force_cut_x=-1, force_cut_y=-1):
+      if force_flip == -1:
+        if np.random.randint(0, 100) > 50:
+          flip = True
+        else:
+          flip = False
       else:
-        flip = False
+        if force_flip == 0:
+          flip = False
+        else:
+          flip = True
 
-      rotate_deg = int(np.random.normal(0, 8))
+      if force_rot == -1000:
+        rotate_deg = int(np.random.normal(0, 8))
+      else:
+        rotate_deg = force_rot
 
       if force_size_idx > 0:
         size_idx = force_size_idx
@@ -169,13 +193,13 @@ class BatchDatset (threading.Thread):
           if non_zero_perc > 0.5:
             size_idx = img_width_multiple
 
-      final_img, final_annot = self._transform_img(img, annot, save_out, flip, rotate_deg, size_idx, -1, -1)
+      final_img, final_annot = self.transform_img(img, annot, save_out, flip, rotate_deg, size_idx, force_cut_x, force_cut_y)
       return final_img, final_annot
 
-    def _transform_img(self, img, annot, save_out, flip, rotate_deg,
+    def transform_img(self, img, annot, save_out, flip, rotate_deg,
                           size_idx, cut_x_in, cut_y_in):
 
-      # Flip the image around the vertical axis randomly
+        # Flip the image around the vertical axis randomly
       if flip:
         new_img = np.fliplr(img)
         new_annot = np.fliplr(annot)
@@ -191,16 +215,20 @@ class BatchDatset (threading.Thread):
         new_annot = annot
         self.flip = False
 
-        print("flip: ", self.flip)
+      print("flip: ", self.flip)
 
       # Rotate the image if needed. Use a normal distribution
       # and truncate it to an integer to get the rotation degrees
       # to use.
       self.rotation = rotate_deg
       if rotate_deg != 0:
+        M = cv2.getRotationMatrix2D((new_annot.shape[1] / 2, new_annot.shape[0] / 2), rotate_deg, 1)
+        new_annot2 = cv2.warpAffine(new_annot, M, (new_annot.shape[1], new_annot.shape[0]))
+
         new_img = rotate_img(new_img, rotate_deg)
         new_annot = rotate_img(new_annot, rotate_deg)
         print("rotation: ", rotate_deg)
+
 
       cut_width = int(size_idx * self.final_width)
       cut_height = int(cut_width * (self.final_height/self.final_width))
@@ -258,12 +286,16 @@ class BatchDatset (threading.Thread):
       # Last, resize the cut images to match the final image size.
       final_img = misc.imresize(cut_img, (self.final_height, self.final_width))
       # final_img = cv2.resize(cut_img, (self.final_width, self.final_height), interpolation=cv2.INTER_AREA)
-      final_annot = cut_annot[::size_idx, ::size_idx]
+      #final_annot = cv2.resize(cut_annot, (self.final_width, self.final_height), fx=0, fy=0, interpolation=cv2.INTER_NEAREST)
+      final_annot = misc.imresize(cut_annot, (self.final_height, self.final_width), interp='nearest')
+      #final_annot = cut_annot[::size_idx, ::size_idx]
 
       if save_out:
         misc.imsave('final_orig.jpg', img)
         misc.imsave('final_img.jpg', final_img)
-        misc.imsave('final_mask.png', final_annot)
+        misc.imsave('final_mask.png', cut_annot)
+
+      final_annot = self.removeDisallowedMaskValues(final_annot)
 
       return final_img, final_annot
 
@@ -283,25 +315,6 @@ class BatchDatset (threading.Thread):
         else:
           time.sleep(0.002)
 
-    def next_batch_old(self):
-      start = self.batch_offset
-      self.batch_offset += self.batch_size
-      if self.batch_offset > self.images.shape[0]:
-        # Finished epoch
-        self.epochs_completed += 1
-        print("****************** Epochs completed: " + str(self.epochs_completed) + "******************")
-        # Shuffle the data
-        perm = np.arange(self.images.shape[0])
-        np.random.shuffle(perm)
-        self.images = self.images[perm]
-        self.annotations = self.annotations[perm]
-        # Start next epoch
-        start = 0
-        self.batch_offset = self.batch_size
-
-      end = self.batch_offset
-      return self.images[start:end], self.annotations[start:end]
-
     def wait_for_images(self):
       while len(self.images) < self.batch_size:
         while self.load_next_images:
@@ -310,7 +323,7 @@ class BatchDatset (threading.Thread):
         if len(self.images) < self.batch_size:
           self.load_next_images = True
 
-    def next_batch(self, random_mod, save_out, force_size_idx=-1):
+    def next_batch(self, random_mod, save_out, force_size_idx=-1, force_flip=-1, force_rot=-1000, force_cut_x=-1, force_cut_y=-1):
 
       # Wait for the images to be loaded if they are not already in place
       self.wait_for_images()
@@ -338,16 +351,8 @@ class BatchDatset (threading.Thread):
           annot = self.annotations[idx]
           self.filename = self.image_files[idx]
 
-          if random_mod:
-            img_trans, annot_trans = self._random_transform(img, annot, save_out, force_size_idx)
-          else:
-            # If not random modifying then we need to resize the image and annotation to
-            # be the correct size.
-            img_trans = misc.imresize(img, (self.final_height, self.final_width))
-            annot_trans = misc.imresize(annot, (self.final_height, self.final_width), interp='nearest')
-
-          img_batch_list.append(img_trans)
-          annot_batch_list.append(annot_trans)
+          img_batch_list.append(img)
+          annot_batch_list.append(annot)
           idx += 1
 
         img_batch = np.array(img_batch_list).reshape(
@@ -379,7 +384,7 @@ class BatchDatset (threading.Thread):
         annot = self.annotations[idx]
         self.filename = self.image_files[idx]
 
-        img_trans, annot_trans = self._transform_img(
+        img_trans, annot_trans = self.transform_img(
                         img, annot, save_out, flip, rotate_deg,
                         size_idx, cut_x_in, cut_y_in)
 
@@ -392,3 +397,46 @@ class BatchDatset (threading.Thread):
         (len(annot_batch_list), self.final_height, self.final_width, 1))
 
       return img_batch, annot_batch, self.image_files
+
+
+    def removeDisallowedMaskValues(self, mask):
+
+        #misc.imsave('new_mask_orig.png', mask)
+
+        for idx in range(1, len(self.allowed_mask_vals)):
+            low_val = self.allowed_mask_vals[idx-1]
+            high_val = self.allowed_mask_vals[idx]
+            half_val = int(low_val + ((self.allowed_mask_vals[idx] - self.allowed_mask_vals[idx-1])/2))
+
+            lower_start_val = low_val + 1
+            lower_end_val =  half_val
+
+            upper_start_val = lower_end_val + 1
+            upper_end_val = high_val -1
+
+            low_range = cv2.inRange(mask, lower_start_val, lower_end_val)
+            low_range_inv = cv2.bitwise_not(low_range)
+            high_range = cv2.inRange(mask, upper_start_val, upper_end_val)
+            high_range_inv = cv2.bitwise_not(high_range)
+
+            mask = cv2.bitwise_and(mask, mask, mask = low_range_inv)
+            mask = cv2.bitwise_and(mask, mask, mask = high_range_inv)
+
+            mask_fill = ((low_range/255 * low_val) + (high_range/255 * high_val))
+            mask = mask + mask_fill
+
+            #misc.imsave('new_mask_out_' + str(idx) + '.png', mask_fill)
+            #misc.imsave('new_mask_' + str(idx) + '.png', mask)
+
+        # Now get the pixels between the last one and the 255 value
+        low_val = self.allowed_mask_vals[-1]
+        low_range = cv2.inRange(mask, self.allowed_mask_vals[-1]+1, 255)
+        low_range_inv = cv2.bitwise_not(low_range)
+        mask = cv2.bitwise_and(mask, mask, mask=low_range_inv)
+        mask_fill = (low_range/255 * low_val)
+        mask = (mask + mask_fill).astype(np.uint8)
+
+        #misc.imsave('new_mask_out.png', mask_fill)
+        #misc.imsave('new_mask.png', mask)
+
+        return mask
