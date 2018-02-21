@@ -125,7 +125,7 @@ class BatchDatset (threading.Thread):
           greyscale = False
 
         image = misc.imread(filename, flatten=greyscale)
-        # print("Read image: ", filename)
+        print("Read image: ", filename)
         if self.__channels and not greyscale and len(image.shape) < 3:  # make sure images are of shape(h,w,3)
             image = np.array([image for i in range(3)])
 
@@ -152,6 +152,26 @@ class BatchDatset (threading.Thread):
     def reset_batch_offset(self, offset=0):
         self.batch_offset = offset
 
+    def randomSizeIdx(self, width_multiple):
+
+        val_list = []
+        count = 100
+        prob = 1.0
+        for i in range(1, width_multiple+1):
+            if prob > 0:
+                values = np.ones(int(count * prob)) * i
+            else:
+                values = np.ones(10) * i
+
+            val_list.extend(values)
+            prob = prob - 0.20
+            if prob < 0:
+                prob = 0
+
+        random.shuffle(val_list)
+        idx = np.random.randint(0, len(val_list))
+        size_idx = val_list[idx]
+        return int(size_idx)
 
     def random_transform(self, img, annot, save_out=False, force_size_idx=-1, force_flip=-1, force_rot=-1000, force_cut_x=-1, force_cut_y=-1):
       if force_flip == -1:
@@ -174,9 +194,10 @@ class BatchDatset (threading.Thread):
         size_idx = force_size_idx
       else:
         # Find out how many multiples the final image is compared
-        # to the input image.
+        # to the input image. Use a normal distribution to favor
+        # smaller hi-res images of the spots.
         img_width_multiple = int(img.shape[1] / self.final_width)
-        size_idx = np.random.randint(1, img_width_multiple+1)
+        size_idx = self.randomSizeIdx(img_width_multiple)
 
       final_img, final_annot = self.transform_img(img, annot, save_out, flip, rotate_deg, size_idx, force_cut_x, force_cut_y)
       return final_img, final_annot
@@ -207,9 +228,6 @@ class BatchDatset (threading.Thread):
       # to use.
       self.rotation = rotate_deg
       if rotate_deg != 0:
-        M = cv2.getRotationMatrix2D((new_annot.shape[1] / 2, new_annot.shape[0] / 2), rotate_deg, 1)
-        new_annot2 = cv2.warpAffine(new_annot, M, (new_annot.shape[1], new_annot.shape[0]))
-
         new_img = rotate_img(new_img, rotate_deg)
         new_annot = rotate_img(new_annot, rotate_deg)
         print("rotation: ", rotate_deg)
@@ -219,21 +237,12 @@ class BatchDatset (threading.Thread):
       cut_height = int(cut_width * (self.final_height/self.final_width))
       self.size_idx = size_idx
 
-      #blobs = self.findItemBlobs(new_annot)
+      if cut_width > new_annot.shape[1]:
+        cut_width = new_annot.shape[1]
+      if cut_height > new_annot.shape[0]:
+        cut_height = new_annot.shape[0]
 
-      # Randomly choose the pixel for the top-left corner where
-      # we will begin the cut.
-      area_width = img.shape[1] - cut_width
-      area_height = img.shape[0] - cut_height
-      if area_width > 1:
-        cut_x = np.random.randint(0, area_width-1)
-      else:
-        cut_x = 0
-
-      if area_height > 1:
-        cut_y = np.random.randint(0, area_height - 1)
-      else:
-        cut_y = 0
+      cut_x, cut_y = self.getRandomCutCenter(new_annot, cut_width, cut_height)
 
       if cut_x_in >= 0:
         cut_x = cut_x_in
@@ -280,7 +289,10 @@ class BatchDatset (threading.Thread):
       if save_out:
         misc.imsave('final_orig.jpg', img)
         misc.imsave('final_img.jpg', final_img)
-        misc.imsave('final_mask.png', cut_annot)
+        misc.imsave('final_mask.png', final_annot)
+
+        #misc.imsave('before_final_img.jpg', new_img)
+        #misc.imsave('before_final_mask.png', new_annot)
 
       final_annot = self.removeDisallowedMaskValues(final_annot)
 
@@ -430,3 +442,92 @@ class BatchDatset (threading.Thread):
 
     # This methods finds blobs within the mask that are items to train on.
     def findItemBlobs(self, mask):
+
+        # Setup SimpleBlobDetector parameters.
+        params = cv2.SimpleBlobDetector_Params()
+
+        # Change thresholds
+        params.filterByColor = True
+        params.blobColor = 255
+        params.minThreshold = 235
+        params.maxThreshold = 255
+
+        # Filter by Area.
+        params.filterByArea = True
+        params.minArea = 30
+        params.maxArea = 50000000
+
+        # Filter by Circularity
+        params.filterByCircularity = False
+        params.minCircularity = 0.1
+
+        # Filter by Convexity
+        params.filterByConvexity = False
+        params.minConvexity = 0.87
+
+        # Filter by Inertia
+        params.filterByInertia = False
+        params.minInertiaRatio = 0.01
+
+        detector = cv2.SimpleBlobDetector_create(params)
+
+        keypoint_list = []
+
+        # Go through each of the key mask values and find blobs of this in the images
+        # Skip the first element because it should always be 0.
+        for idx in range(1, len(self.allowed_mask_vals)):
+            target_val = self.allowed_mask_vals[idx]
+            range_mask = cv2.inRange(mask, target_val-10, target_val+10)
+            #misc.imsave('pre_blob.png', range_mask)
+
+            keypoints = detector.detect(range_mask)
+            if len(keypoints) > 0:
+                keypoint_list.extend(keypoints)
+
+        return keypoint_list
+
+    def getRandomCutCenter(self, mask, cut_width, cut_height):
+
+        #misc.imsave('pre_blob.png', mask)
+
+        blobs = self.findItemBlobs(mask)
+
+        rand_num = int(np.random.uniform(0, 101))
+
+        # 20% change of picking any random area.
+        if rand_num < 20 or len(blobs) <= 0:
+            # Randomly choose the pixel for the top-left corner where
+            # we will begin the cut.
+            area_width = mask.shape[1] - cut_width
+            area_height = mask.shape[0] - cut_height
+
+            if area_width > 1:
+                cut_x = np.random.randint(0, area_width - 1)
+            else:
+                cut_x = 0
+
+            if area_height > 1:
+                cut_y = np.random.randint(0, area_height - 1)
+            else:
+                cut_y = 0
+        else:
+            # 80% change of picking one of the blobs to focus on.
+            rand_num = np.random.randint(0, len(blobs))
+            blob = blobs[rand_num]
+
+            #img_out = cv2.circle(mask, (int(blob.pt[0]), int(blob.pt[1])), radius=100, color=255, thickness=10)
+            #misc.imsave('post_blob.png', img_out)
+
+            cut_x = int(blob.pt[1]) - int(cut_width/2)
+            cut_y = int(blob.pt[0]) - int(cut_height/2)
+
+            if cut_x + cut_width > mask.shape[1]:
+                cut_x = cut_x - ((cut_x + cut_width) - mask.shape[1])
+            if cut_y + cut_height > mask.shape[0]:
+                cut_y = cut_y - ((cut_y + cut_height) - mask.shape[0])
+            if cut_x < 0:
+                cut_x = 0
+            if cut_y < 0:
+                cut_y = 0
+
+        return cut_x, cut_y
