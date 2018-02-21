@@ -166,7 +166,7 @@ class BatchDatset (threading.Thread):
           flip = True
 
       if force_rot == -1000:
-        rotate_deg = int(np.random.normal(0, 8))
+        rotate_deg = int(np.random.uniform(-35, 35))
       else:
         rotate_deg = force_rot
 
@@ -176,22 +176,7 @@ class BatchDatset (threading.Thread):
         # Find out how many multiples the final image is compared
         # to the input image.
         img_width_multiple = int(img.shape[1] / self.final_width)
-        # Randomly choose a size to use
-        if(img_width_multiple + 2 > 3):
-          size_idx = np.random.randint(3, img_width_multiple + 2)
-        else:
-          size_idx = 1
-
-        if size_idx >= img_width_multiple:  # Give larger image a greater chance of being picked.
-          size_idx = img_width_multiple
-
-        if size_idx < 5:
-          # Check to make sure that more than half of the image is not zeros
-          non_zero_annot = np.where(annot != 0)
-          non_zero_annot_count = len(non_zero_annot[0])
-          non_zero_perc = float(non_zero_annot_count)/float(annot.size)
-          if non_zero_perc > 0.5:
-            size_idx = img_width_multiple
+        size_idx = np.random.randint(1, img_width_multiple+1)
 
       final_img, final_annot = self.transform_img(img, annot, save_out, flip, rotate_deg, size_idx, force_cut_x, force_cut_y)
       return final_img, final_annot
@@ -230,6 +215,8 @@ class BatchDatset (threading.Thread):
       cut_width = int(size_idx * self.final_width)
       cut_height = int(cut_width * (self.final_height/self.final_width))
       self.size_idx = size_idx
+
+      #blobs = self.findItemBlobs(new_annot)
 
       # Randomly choose the pixel for the top-left corner where
       # we will begin the cut.
@@ -431,3 +418,6 @@ class BatchDatset (threading.Thread):
         #misc.imsave('new_mask.png', mask)
 
         return mask
+
+    # This methods finds blobs within the mask that are items to train on.
+    def findItemBlobs(self, mask):
