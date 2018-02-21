@@ -200,7 +200,9 @@ class BatchDatset (threading.Thread):
         new_annot = annot
         self.flip = False
 
-        # Rotate the image if needed. Use a normal distribution
+      print("flip: ", self.flip)
+
+      # Rotate the image if needed. Use a normal distribution
       # and truncate it to an integer to get the rotation degrees
       # to use.
       self.rotation = rotate_deg
@@ -210,6 +212,7 @@ class BatchDatset (threading.Thread):
 
         new_img = rotate_img(new_img, rotate_deg)
         new_annot = rotate_img(new_annot, rotate_deg)
+        print("rotation: ", rotate_deg)
 
 
       cut_width = int(size_idx * self.final_width)
@@ -240,6 +243,11 @@ class BatchDatset (threading.Thread):
 
       self.cut_x = cut_x
       self.cut_y = cut_y
+
+      print("cut_x: ", cut_x)
+      print("cut_y: ", cut_y)
+      print("cut_width: ", cut_width)
+      print("cut_height: ", cut_height)
 
       # Cut out a section of the large image to resize to the
       # smaller section.
@@ -326,6 +334,7 @@ class BatchDatset (threading.Thread):
 
         idx = 0
         for img in self.images:
+          print(self.image_files)
           annot = self.annotations[idx]
           self.filename = self.image_files[idx]
 
