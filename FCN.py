@@ -18,7 +18,7 @@ MODEL_URL = 'http://www.vlfeat.org/matconvnet/models/beta16/imagenet-vgg-verydee
 class Segment:
 
   max_iterations = int(1e5 + 1)
-  max_epochs = 10
+  max_epochs = 50
   num_of_classes = 255
   image_resize = False
   image_width = 672
@@ -279,7 +279,7 @@ class Segment:
 
     itr = 0
     for epoch in xrange(self.max_epochs):
-      for epoch_itr in xrange(len(self.train_records)):
+      for epoch_itr in xrange(len(self.train_records)*3):
         train_images, train_annotations, train_image_names = \
           self.train_dataset_reader.next_batch(True, False, self.force_size_idx)
         feed_dict = {self.image: train_images,
