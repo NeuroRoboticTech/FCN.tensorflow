@@ -15,7 +15,7 @@ tf.flags.DEFINE_string('mode', "train", "Mode train/ test/ visualize")
 
 def main(argv=None):
   # try:
-  segment = FCN.Segment(width=700, height=700)
+  segment = FCN.Segment(width=500, height=500)
   segment.init_network(True)
   segment.train_network()
   segment.close()

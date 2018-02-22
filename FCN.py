@@ -11,6 +11,7 @@ import time
 import os
 import psycopg2
 import scipy.misc as misc
+import sys
 
 MODEL_URL = 'http://www.vlfeat.org/matconvnet/models/beta16/imagenet-vgg-verydeep-19.mat'
 
@@ -288,7 +289,7 @@ class Segment:
 
         self.sess.run(self.train_op, feed_dict=feed_dict)
 
-        if itr % 10 == 0:
+        if itr % 5 == 0:
           train_loss, summary_str = \
             self.sess.run([self.loss, self.summary_op], feed_dict=feed_dict)
           print("Step: %d, Train_loss:%g, file: %s" % (itr, train_loss,
@@ -296,7 +297,7 @@ class Segment:
           self.summary_writer.add_summary(summary_str, itr)
           self.save_loss_to_db(epoch, itr, train_loss, self.train_dataset_reader, True)
 
-        if itr % 500 == 0:
+        if itr % 100 == 0:
           valid_images, valid_annotations, val_image_names = \
             self.validation_dataset_reader.next_batch(True, True, self.force_size_idx)
           valid_loss, val_summary_str = self.sess.run([self.loss, self.val_loss_sum_op],
@@ -305,6 +306,8 @@ class Segment:
           self.summary_writer.add_summary(val_summary_str, itr)
           print("%s ---> Validation_loss: %g, file: %s" % (datetime.datetime.now(), valid_loss,
                                                        self.validation_dataset_reader.filename['filename']))
+
+        if itr % 500 == 0:
           self.save_loss_to_db(epoch, itr, valid_loss, self.validation_dataset_reader, False)
           self.saver.save(self.sess, self.FLAGS.logs_dir + "model.ckpt", itr)
 
@@ -379,16 +382,19 @@ class Segment:
       self.conn.close()
 
   def save_loss_to_db(self, epoch, itr, loss, dataset_reader, train_record):
-    if self.db_logging:
-      self.cur.execute("INSERT INTO losses (experiment_id, epoch, "
-                     "iteration, loss, training, image, flip, "
-                     "rotation, size_idx, cut_x, cut_y) VALUES "
-                     "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                     (self.run_id, epoch, itr, float(loss), train_record,
-                      dataset_reader.filename['filename'], dataset_reader.flip,
-                      dataset_reader.rotation, dataset_reader.size_idx,
-                      dataset_reader.cut_x, dataset_reader.cut_y))
-      self.conn.commit()
+    try:
+      if self.db_logging:
+        self.cur.execute("INSERT INTO losses (experiment_id, epoch, "
+                       "iteration, loss, training, image, flip, "
+                       "rotation, size_idx, cut_x, cut_y) VALUES "
+                       "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                       (self.run_id, epoch, itr, float(loss), train_record,
+                        dataset_reader.filename['filename'], dataset_reader.flip,
+                        dataset_reader.rotation, dataset_reader.size_idx,
+                        dataset_reader.cut_x, dataset_reader.cut_y))
+        self.conn.commit()
+    except:
+      print("Unexpected error:", sys.exc_info()[0])
 
   def calc_accuracy_for_image(self, mask_orig, mask_pred):
     # Find the difference between all pixel values.
