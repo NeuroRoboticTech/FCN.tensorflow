@@ -18,7 +18,7 @@ MODEL_URL = 'http://www.vlfeat.org/matconvnet/models/beta16/imagenet-vgg-verydee
 class Segment:
 
   max_iterations = int(1e5 + 1)
-  max_epochs = 50
+  max_epochs = 20
   num_of_classes = 255
   image_resize = False
   image_width = 672
@@ -247,7 +247,7 @@ class Segment:
                      'image_height': self.image_height,
                      'image_width': self.image_width,
                      'image_channels': self.image_channels}
-    allowed_mask_vals = [0, 128, 192]
+    allowed_mask_vals = [0, 128, 225]
     if self.FLAGS.mode == 'train' or self.FLAGS.mode == 'visualize':
         self.train_dataset_reader = dataset.BatchDatset(
           self.train_records, self.FLAGS.batch_size, allowed_mask_vals, image_options)

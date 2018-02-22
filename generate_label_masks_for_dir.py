@@ -15,9 +15,7 @@ color_img_dirs = ["C:/Work/PowerLineInspection/aeryon_database/Defective/Flashed
 image_dir = "C:/Work/PowerLineInspection/aeryon_database/images/"
 mask_dir = "C:/Work/PowerLineInspection/aeryon_database/labels/"
 
-label_list, ignore_list = tu.createFlashedOnlyList(192) #, 128, 64
-out_img_width = 1280
-out_img_height = 960
+label_list, ignore_list = tu.createFlashedOnlyLists()
 
 
 def process_dir(input_dir):

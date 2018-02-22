@@ -286,15 +286,15 @@ class BatchDatset (threading.Thread):
       final_annot = misc.imresize(cut_annot, (self.final_height, self.final_width), interp='nearest')
       #final_annot = cut_annot[::size_idx, ::size_idx]
 
+      final_annot = self.removeDisallowedMaskValues(final_annot)
+
       if save_out:
         misc.imsave('final_orig.jpg', img)
         misc.imsave('final_img.jpg', final_img)
         misc.imsave('final_mask.png', final_annot)
 
-        #misc.imsave('before_final_img.jpg', new_img)
-        #misc.imsave('before_final_mask.png', new_annot)
-
-      final_annot = self.removeDisallowedMaskValues(final_annot)
+        # misc.imsave('before_final_img.jpg', new_img)
+        # misc.imsave('before_final_mask.png', new_annot)
 
       return final_img, final_annot
 
@@ -435,99 +435,75 @@ class BatchDatset (threading.Thread):
         mask_fill = (low_range/255 * low_val)
         mask = (mask + mask_fill).astype(np.uint8)
 
+
+        # For now hard code in only keeping last value of mask range
+        low_range = cv2.inRange(mask, low_val-10, low_val+10)
+        mask = (low_range/255 * low_val).astype(np.uint8)
+
+
         #misc.imsave('new_mask_out.png', mask_fill)
-        #misc.imsave('new_mask.png', mask)
+        misc.imsave('new_mask.png', mask)
 
         return mask
 
-    # This methods finds blobs within the mask that are items to train on.
-    def findItemBlobs(self, mask):
+    def chooseRandomCutCenterBackground(self, mask, cut_width, cut_height):
+        # Randomly choose the pixel for the top-left corner where
+        # we will begin the cut.
+        area_width = mask.shape[1] - cut_width
+        area_height = mask.shape[0] - cut_height
 
-        # Setup SimpleBlobDetector parameters.
-        params = cv2.SimpleBlobDetector_Params()
+        if area_width > 1:
+            cut_x = np.random.randint(0, area_width - 1)
+        else:
+            cut_x = 0
 
-        # Change thresholds
-        params.filterByColor = True
-        params.blobColor = 255
-        params.minThreshold = 235
-        params.maxThreshold = 255
+        if area_height > 1:
+            cut_y = np.random.randint(0, area_height - 1)
+        else:
+            cut_y = 0
 
-        # Filter by Area.
-        params.filterByArea = True
-        params.minArea = 30
-        params.maxArea = 50000000
-
-        # Filter by Circularity
-        params.filterByCircularity = False
-        params.minCircularity = 0.1
-
-        # Filter by Convexity
-        params.filterByConvexity = False
-        params.minConvexity = 0.87
-
-        # Filter by Inertia
-        params.filterByInertia = False
-        params.minInertiaRatio = 0.01
-
-        detector = cv2.SimpleBlobDetector_create(params)
-
-        keypoint_list = []
-
-        # Go through each of the key mask values and find blobs of this in the images
-        # Skip the first element because it should always be 0.
-        for idx in range(1, len(self.allowed_mask_vals)):
-            target_val = self.allowed_mask_vals[idx]
-            range_mask = cv2.inRange(mask, target_val-10, target_val+10)
-            #misc.imsave('pre_blob.png', range_mask)
-
-            keypoints = detector.detect(range_mask)
-            if len(keypoints) > 0:
-                keypoint_list.extend(keypoints)
-
-        return keypoint_list
+        return cut_x, cut_y
 
     def getRandomCutCenter(self, mask, cut_width, cut_height):
 
         #misc.imsave('pre_blob.png', mask)
 
-        blobs = self.findItemBlobs(mask)
-
         rand_num = int(np.random.uniform(0, 101))
 
         # 20% change of picking any random area.
-        if rand_num < 20 or len(blobs) <= 0:
-            # Randomly choose the pixel for the top-left corner where
-            # we will begin the cut.
-            area_width = mask.shape[1] - cut_width
-            area_height = mask.shape[0] - cut_height
-
-            if area_width > 1:
-                cut_x = np.random.randint(0, area_width - 1)
-            else:
-                cut_x = 0
-
-            if area_height > 1:
-                cut_y = np.random.randint(0, area_height - 1)
-            else:
-                cut_y = 0
+        if rand_num < 20 or len(self.allowed_mask_vals) <= 0:
+            return self.chooseRandomCutCenterBackground(mask, cut_width, cut_height)
         else:
-            # 80% change of picking one of the blobs to focus on.
-            rand_num = np.random.randint(0, len(blobs))
-            blob = blobs[rand_num]
+            #First randomly choose one of the mask values to look at. Exclude the first one that is zero.
+            shuffled_mask_vals = self.allowed_mask_vals[-(len(self.allowed_mask_vals)-1):]
+            np.random.shuffle(shuffled_mask_vals)
 
-            #img_out = cv2.circle(mask, (int(blob.pt[0]), int(blob.pt[1])), radius=100, color=255, thickness=10)
-            #misc.imsave('post_blob.png', img_out)
+            # Now loop through those and try to pick a point from the mask randomly
+            for mask_color in shuffled_mask_vals:
+                range_mask = (cv2.inRange(mask, mask_color - 10, mask_color + 10)*0.65).astype(np.uint8)
 
-            cut_x = int(blob.pt[1]) - int(cut_width/2)
-            cut_y = int(blob.pt[0]) - int(cut_height/2)
+                # Find mask pixel locations where it is not black
+                indices = np.where(range_mask != 0)
 
-            if cut_x + cut_width > mask.shape[1]:
-                cut_x = cut_x - ((cut_x + cut_width) - mask.shape[1])
-            if cut_y + cut_height > mask.shape[0]:
-                cut_y = cut_y - ((cut_y + cut_height) - mask.shape[0])
-            if cut_x < 0:
-                cut_x = 0
-            if cut_y < 0:
-                cut_y = 0
+                if len(indices[0]) > 0:
+                    # Randomly choose one of these pixels
+                    rand_idx = np.random.randint(0, len(indices[0]))
+                    cut_x = indices[0][rand_idx]
+                    cut_y = indices[1][rand_idx]
 
-        return cut_x, cut_y
+                    #img_out = cv2.circle(range_mask, (cut_y, cut_x), radius=50, color=255, thickness=10)
+                    #misc.imsave('post_blob.png', img_out)
+
+                    if cut_x + cut_width > mask.shape[1]:
+                        cut_x = cut_x - ((cut_x + cut_width) - mask.shape[1])
+                    if cut_y + cut_height > mask.shape[0]:
+                        cut_y = cut_y - ((cut_y + cut_height) - mask.shape[0])
+                    if cut_x < 0:
+                        cut_x = 0
+                    if cut_y < 0:
+                        cut_y = 0
+
+                    return cut_x, cut_y
+
+            # If we found nothing from any of those then just pick a point randomly
+            return self.chooseRandomCutCenterBackground(mask, cut_width, cut_height)

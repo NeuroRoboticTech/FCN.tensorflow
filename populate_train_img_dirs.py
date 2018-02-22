@@ -15,7 +15,7 @@ from random import randint
 in_images_path = "C:/Work/PowerLineInspection/aeryon_database/images/"
 in_labels_path = "C:/Work/PowerLineInspection/aeryon_database/labels/"
 
-output_path = "C:/Work/PowerLineInspection/aeryon_database/data/"
+output_path = "C:/Work/PowerLineInspection/FCN.tensorflow/Data_Zoo/Insulators/flashed_data/"
 
 #Percentage for whether an image should go to validation folder or not.
 val_perc = 10

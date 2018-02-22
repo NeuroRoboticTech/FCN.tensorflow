@@ -66,9 +66,54 @@ def createIgnoreLabelList():
   return label_list
 
 
-def createFlashedOnlyList(good_insulator_num):
+def createInsulatorAndFlashedLists():
   label_list = createLabelList()
   ignore_list = createIgnoreLabelList()
+
+  return label_list, ignore_list
+
+
+# Creates the label list and maps my color codes to pascal voc
+def createFlashedOnlyLabelList():
+  offset = 10
+  good_insulator_label = SType.SegmentLabelType('good_insulator', np.array([0, 0, 128]), np.array([0,0,255]), offset, 128)
+
+  flashed_insulator_label = SType.SegmentLabelType('flashed_insulator', np.array([0, 128, 128]), np.array([255,0,255]), offset, 128)
+  flashed_label = SType.SegmentLabelType('flashed', np.array([128, 0, 0]), np.array([255,150,255]), offset, 225)
+  flashed_top_label = SType.SegmentLabelType('flashed_top', np.array([64, 0, 0]), np.array([255,225,255]), offset, 128)
+
+  broken_insulator_label = SType.SegmentLabelType('broken_insulator', np.array([255,0,0]), np.array([255,0,0]), offset, 128)
+  broken_label = SType.SegmentLabelType('broken', np.array([255,100,100]), np.array([255,100,100]), offset, 128)
+
+  contaminated_insulator_label = SType.SegmentLabelType('contaminated_insulator', np.array([255,220,0]), np.array([255,220,0]), offset, 128)
+  contamination_label = SType.SegmentLabelType('contamination', np.array([255,255,150]), np.array([255,255,150]), offset, 128)
+
+  label_list = [good_insulator_label, flashed_insulator_label, flashed_label, flashed_top_label,
+                broken_insulator_label, broken_label, contaminated_insulator_label, contamination_label]
+
+  return label_list
+
+
+def createFlashedOnlyIgnoreLabelList():
+  offset = 10
+
+  #broken_insulator_label = SType.SegmentLabelType('broken_insulator', np.array([255, 0, 0]), np.array([255, 0, 0]),
+  #                                                offset, 255)
+  #broken_label = SType.SegmentLabelType('broken', np.array([255, 100, 100]), np.array([255, 100, 100]), offset, 255)
+
+  #contamination_label = SType.SegmentLabelType('contamination', np.array([255, 255, 150]), np.array([255, 255, 150]),
+  #                                             offset, 255)
+
+  ignore_label = SType.SegmentLabelType('ignore', np.array([192, 224, 224]), np.array([255,255,255]), offset, 255)
+
+  label_list = [ignore_label]
+
+  return label_list
+
+
+def createFlashedOnlyLists():
+  label_list = createFlashedOnlyLabelList()
+  ignore_list = createFlashedOnlyIgnoreLabelList()
 
   return label_list, ignore_list
 
