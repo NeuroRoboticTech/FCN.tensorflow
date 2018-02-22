@@ -17,11 +17,11 @@ train_records, valid_records = \
 print(len(train_records))
 
 #Set the next images to be loaded.
-swapRecords(train_records, 0, 2)
+swapRecords(train_records, 0, 96)
 
 image_options = {'resize': False,
-                 'image_height': 700,
-                 'image_width': 700,
+                 'image_height': 500,
+                 'image_width': 500,
                  'image_channels': 3}
 allowed_mask_vals = [0, 128, 225]
 train_dataset_reader = dataset.BatchDatset(

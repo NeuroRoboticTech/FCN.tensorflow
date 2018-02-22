@@ -152,26 +152,39 @@ class BatchDatset (threading.Thread):
     def reset_batch_offset(self, offset=0):
         self.batch_offset = offset
 
-    def randomSizeIdx(self, width_multiple):
+    def randomSizeIdx(self, width_multiple, mask):
 
-        val_list = []
-        count = 100
-        prob = 1.0
-        for i in range(1, width_multiple+1):
-            if prob > 0:
-                values = np.ones(int(count * prob)) * i
-            else:
-                values = np.ones(10) * i
+        new_mask = misc.imresize(mask, (self.final_height, self.final_width))
 
-            val_list.extend(values)
-            prob = prob - 0.20
-            if prob < 0:
-                prob = 0
+        # Find mask pixel locations where it is not black
+        indices = np.where(new_mask != 0)
 
-        random.shuffle(val_list)
-        idx = np.random.randint(0, len(val_list))
-        size_idx = val_list[idx]
-        return int(size_idx)
+        if len(indices[0]) > 30000:
+            return 3
+        elif len(indices[0]) > 15000:
+            return 2
+        else:
+            return 1
+
+        return 1
+        #val_list = []
+        #count = 200
+        #prob = 1.0
+        #for i in range(1, width_multiple+1):
+        #    if prob > 0:
+        #        values = np.ones(int(count * prob)) * i
+        #    else:
+        #        values = np.ones(5) * i
+
+        #    val_list.extend(values)
+        #    prob = prob - 0.30
+        #    if prob < 0:
+        #        prob = 0
+
+        #random.shuffle(val_list)
+        #idx = np.random.randint(0, len(val_list))
+        #size_idx = val_list[idx]
+        #return int(size_idx)
 
     def random_transform(self, img, annot, save_out=False, force_size_idx=-1, force_flip=-1, force_rot=-1000, force_cut_x=-1, force_cut_y=-1):
       if force_flip == -1:
@@ -197,7 +210,7 @@ class BatchDatset (threading.Thread):
         # to the input image. Use a normal distribution to favor
         # smaller hi-res images of the spots.
         img_width_multiple = int(img.shape[1] / self.final_width)
-        size_idx = self.randomSizeIdx(img_width_multiple)
+        size_idx = self.randomSizeIdx(img_width_multiple, annot)
 
       final_img, final_annot = self.transform_img(img, annot, save_out, flip, rotate_deg, size_idx, force_cut_x, force_cut_y)
       return final_img, final_annot
@@ -288,13 +301,13 @@ class BatchDatset (threading.Thread):
 
       final_annot = self.removeDisallowedMaskValues(final_annot)
 
-      if save_out:
-        misc.imsave('final_orig.jpg', img)
-        misc.imsave('final_img.jpg', final_img)
-        misc.imsave('final_mask.png', final_annot)
+      #if save_out:
+      #misc.imsave('final_orig.jpg', img)
+      misc.imsave('final_img.jpg', final_img)
+      misc.imsave('final_mask.png', final_annot)
 
-        # misc.imsave('before_final_img.jpg', new_img)
-        # misc.imsave('before_final_mask.png', new_annot)
+      # misc.imsave('before_final_img.jpg', new_img)
+      # misc.imsave('before_final_mask.png', new_annot)
 
       return final_img, final_annot
 
@@ -442,7 +455,7 @@ class BatchDatset (threading.Thread):
 
 
         #misc.imsave('new_mask_out.png', mask_fill)
-        misc.imsave('new_mask.png', mask)
+        #misc.imsave('new_mask.png', mask)
 
         return mask
 
@@ -462,7 +475,7 @@ class BatchDatset (threading.Thread):
         else:
             cut_y = 0
 
-        return cut_x, cut_y
+        return int(cut_x), int(cut_y)
 
     def getRandomCutCenter(self, mask, cut_width, cut_height):
 
@@ -471,12 +484,12 @@ class BatchDatset (threading.Thread):
         rand_num = int(np.random.uniform(0, 101))
 
         # 20% change of picking any random area.
-        if rand_num < 20 or len(self.allowed_mask_vals) <= 0:
+        if rand_num < 0 or len(self.allowed_mask_vals) <= 0:
             return self.chooseRandomCutCenterBackground(mask, cut_width, cut_height)
         else:
             #First randomly choose one of the mask values to look at. Exclude the first one that is zero.
-            shuffled_mask_vals = self.allowed_mask_vals[-(len(self.allowed_mask_vals)-1):]
-            np.random.shuffle(shuffled_mask_vals)
+            shuffled_mask_vals = [225, 128] #self.allowed_mask_vals[-(len(self.allowed_mask_vals)-1):]
+            #np.random.shuffle(shuffled_mask_vals)
 
             # Now loop through those and try to pick a point from the mask randomly
             for mask_color in shuffled_mask_vals:
@@ -486,13 +499,24 @@ class BatchDatset (threading.Thread):
                 indices = np.where(range_mask != 0)
 
                 if len(indices[0]) > 0:
-                    # Randomly choose one of these pixels
-                    rand_idx = np.random.randint(0, len(indices[0]))
-                    cut_x = indices[0][rand_idx]
-                    cut_y = indices[1][rand_idx]
+                    itr=0
+                    cut_x = 0
+                    cut_y = 0
+                    while itr < 1000:
+                        # Randomly choose one of these pixels
+                        rand_idx = np.random.randint(0, len(indices[0]))
+                        cut_y = int(indices[0][rand_idx] - int(cut_height / 2))
+                        cut_x = int(indices[1][rand_idx] - int(cut_width / 2))
 
-                    #img_out = cv2.circle(range_mask, (cut_y, cut_x), radius=50, color=255, thickness=10)
-                    #misc.imsave('post_blob.png', img_out)
+                        if (cut_x + cut_width) <= mask.shape[1] and \
+                            cut_y + cut_height <= mask.shape[0] and \
+                            cut_x >= 0 and cut_y >= 0:
+                            #img_out = cv2.circle(range_mask, (cut_x, cut_y), radius=50, color=150, thickness=10)
+                            #misc.imsave('post_blob_2.png', img_out)
+
+                            return int(cut_x), int(cut_y)
+
+                        itr = itr + 1
 
                     if cut_x + cut_width > mask.shape[1]:
                         cut_x = cut_x - ((cut_x + cut_width) - mask.shape[1])
@@ -503,7 +527,7 @@ class BatchDatset (threading.Thread):
                     if cut_y < 0:
                         cut_y = 0
 
-                    return cut_x, cut_y
+                    return int(cut_x), int(cut_y)
 
             # If we found nothing from any of those then just pick a point randomly
             return self.chooseRandomCutCenterBackground(mask, cut_width, cut_height)
