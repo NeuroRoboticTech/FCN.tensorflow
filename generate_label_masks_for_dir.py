@@ -7,8 +7,11 @@ import image_utils as iu
 import train_img_utils as tu
 import os
 
-color_img_dirs = ["C:/Work/PowerLineInspection/aeryon_database/Defective/Flashed Insulators/",
-                  "C:/Work/PowerLineInspection/aeryon_database/NonDefective/"
+#color_img_dirs = ["C:/Work/PowerLineInspection/aeryon_database/Defective/Flashed Insulators/",
+#                  "C:/Work/PowerLineInspection/aeryon_database/NonDefective/"
+#                 ]
+
+color_img_dirs = ["C:/Work/PowerLineInspection/aeryon_database/Defective/Flashed Insulators/"
                  ]
 
 #color_img_dirs = ["C:/Work/PowerLineInspection/aeryon_database/test/"]
