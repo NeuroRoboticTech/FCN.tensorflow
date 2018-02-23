@@ -7,22 +7,23 @@ import image_utils as iu
 import train_img_utils as tu
 import os
 
-#color_img_dirs = ["C:/Work/PowerLineInspection/aeryon_database/Defective/Flashed Insulators/",
-#                  "C:/Work/PowerLineInspection/aeryon_database/NonDefective/"
-#                 ]
-
-color_img_dirs = ["C:/Work/PowerLineInspection/aeryon_database/Defective/Flashed Insulators/"
+color_img_dirs = ["C:/Work/PowerLineInspection/aeryon_database/Defective/Flashed Insulators/",
+                  "C:/Work/PowerLineInspection/aeryon_database/NonDefective/"
                  ]
+
+#color_img_dirs = ["C:/Work/PowerLineInspection/aeryon_database/Defective/Flashed Insulators/"
+#                 ]
 
 #color_img_dirs = ["C:/Work/PowerLineInspection/aeryon_database/test/"]
 image_dir = "C:/Work/PowerLineInspection/aeryon_database/images/"
 mask_dir = "C:/Work/PowerLineInspection/aeryon_database/labels/"
 
-label_list, ignore_list = tu.createFlashedOnlyLists()
+#label_list, ignore_list = tu.createFlashedOnlyLists()
+label_list, ignore_list = tu.createInsulatorAndFlashedLists()
 
 
 def process_dir(input_dir):
-  colored_images = iu.findFilesOfType(input_dir, ["_mask.JPG", "_mask.jpg"])
+  colored_images = iu.findFilesOfType(input_dir, ["_mask.JPG", "_mask.jpg", "_mask.png", "mask.PNG"])
 
   for img_name in colored_images:
     base_img_name = img_name[:-9] + ".JPG"

@@ -32,19 +32,15 @@ import SegmentLabelType as SType
 # Creates the label list and maps my color codes to pascal voc
 def createLabelList():
   offset = 10
-  good_insulator_label = SType.SegmentLabelType('good_insulator', np.array([0, 0, 128]), np.array([0,0,255]), offset, 192)
+  good_insulator_label = SType.SegmentLabelType('good_insulator', np.array([0, 0, 128]), np.array([0, 0, 255]),
+                                                offset, 128)
 
-  flashed_insulator_label = SType.SegmentLabelType('flashed_insulator', np.array([0, 128, 128]), np.array([255,0,255]), offset, 192)
-  flashed_label = SType.SegmentLabelType('flashed', np.array([128, 0, 0]), np.array([255,150,255]), offset, 128)
-  flashed_top_label = SType.SegmentLabelType('flashed_top', np.array([64, 0, 0]), np.array([255,225,255]), offset, 192)
+  flashed_insulator_label = SType.SegmentLabelType('flashed_insulator', np.array([0, 128, 128]),
+                                                   np.array([255, 0, 255]), offset, 128)
+  flashed_label = SType.SegmentLabelType('flashed', np.array([128, 0, 0]), np.array([255, 150, 255]), offset, 225)
 
-  #broken_insulator_label = SType.SegmentLabelType('broken_insulator', np.array([255,0,0]), np.array([255,0,0]), offset, 0)
-  #broken_label = SType.SegmentLabelType('broken', np.array([255,100,100]), np.array([255,100,100]), offset, 0)
 
-  contaminated_insulator_label = SType.SegmentLabelType('contaminated_insulator', np.array([255,220,0]), np.array([255,220,0]), offset, 192)
-  #contamination_label = SType.SegmentLabelType('contamination', np.array([255,255,150]), np.array([255,255,150]), offset, 64)
-
-  label_list = [good_insulator_label, flashed_insulator_label, flashed_label, flashed_top_label, contaminated_insulator_label]
+  label_list = [good_insulator_label, flashed_insulator_label, flashed_label]
 
   return label_list
 
@@ -53,15 +49,18 @@ def createIgnoreLabelList():
   offset = 10
 
   broken_insulator_label = SType.SegmentLabelType('broken_insulator', np.array([255, 0, 0]), np.array([255, 0, 0]),
-                                                  offset, 255)
-  broken_label = SType.SegmentLabelType('broken', np.array([255, 100, 100]), np.array([255, 100, 100]), offset, 255)
+                                                  offset, 128)
+  broken_label = SType.SegmentLabelType('broken', np.array([255, 100, 100]), np.array([255, 100, 100]), offset, 128)
 
+  contaminated_insulator_label = SType.SegmentLabelType('contaminated_insulator', np.array([255, 220, 0]),
+                                                        np.array([255, 220, 0]), offset, 128)
   contamination_label = SType.SegmentLabelType('contamination', np.array([255, 255, 150]), np.array([255, 255, 150]),
-                                               offset, 255)
+                                               offset, 128)
 
+  flashed_top_label = SType.SegmentLabelType('flashed_top', np.array([64, 0, 0]), np.array([255,225,255]), offset, 192)
   ignore_label = SType.SegmentLabelType('ignore', np.array([192, 224, 224]), np.array([255,255,255]), offset, 255)
 
-  label_list = [ignore_label, broken_insulator_label, broken_label, contamination_label]
+  label_list = [ignore_label, broken_insulator_label, broken_label, contaminated_insulator_label, contamination_label, flashed_top_label]
 
   return label_list
 
