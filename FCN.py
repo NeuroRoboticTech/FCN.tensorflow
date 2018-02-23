@@ -265,7 +265,7 @@ class Segment:
     self.sess = tf.Session()
 
     print("Setting up Saver...")
-    self.saver = tf.train.Saver(keep_checkpoint_every_n_hours=1)
+    self.saver = tf.train.Saver(keep_checkpoint_every_n_hours=1, max_to_keep=10)
     self.summary_writer = tf.summary.FileWriter(self.FLAGS.logs_dir, self.sess.graph)
 
     self.sess.run(tf.global_variables_initializer())
@@ -273,7 +273,8 @@ class Segment:
     print("Restoring model.")
     ckpt = tf.train.get_checkpoint_state(self.FLAGS.logs_dir)
     if ckpt and ckpt.model_checkpoint_path:
-      self.saver.restore(self.sess, ckpt.model_checkpoint_path)
+      #self.saver.restore(self.sess, ckpt.model_checkpoint_path)
+      self.saver.restore(self.sess, ckpt.all_model_checkpoint_paths[0])
       print("Model restored...")
 
   def train_network(self):
