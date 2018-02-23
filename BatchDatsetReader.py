@@ -449,9 +449,9 @@ class BatchDatset (threading.Thread):
         mask = (mask + mask_fill).astype(np.uint8)
 
 
-        # For now hard code in only keeping last value of mask range
-        low_range = cv2.inRange(mask, low_val-10, low_val+10)
-        mask = (low_range/255 * low_val).astype(np.uint8)
+        ## For now hard code in only keeping last value of mask range
+        #low_range = cv2.inRange(mask, low_val-10, low_val+10)
+        #mask = (low_range/255 * low_val).astype(np.uint8)
 
 
         #misc.imsave('new_mask_out.png', mask_fill)
@@ -488,8 +488,8 @@ class BatchDatset (threading.Thread):
             return self.chooseRandomCutCenterBackground(mask, cut_width, cut_height)
         else:
             #First randomly choose one of the mask values to look at. Exclude the first one that is zero.
-            shuffled_mask_vals = [225, 128] #self.allowed_mask_vals[-(len(self.allowed_mask_vals)-1):]
-            #np.random.shuffle(shuffled_mask_vals)
+            shuffled_mask_vals = self.allowed_mask_vals[-(len(self.allowed_mask_vals)-1):]
+            np.random.shuffle(shuffled_mask_vals)
 
             # Now loop through those and try to pick a point from the mask randomly
             for mask_color in shuffled_mask_vals:

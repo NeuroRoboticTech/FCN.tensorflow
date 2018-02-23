@@ -19,7 +19,7 @@ MODEL_URL = 'http://www.vlfeat.org/matconvnet/models/beta16/imagenet-vgg-verydee
 class Segment:
 
   max_iterations = int(1e5 + 1)
-  max_epochs = 20
+  max_epochs = 10
   num_of_classes = 255
   image_resize = False
   image_width = 672
@@ -265,7 +265,7 @@ class Segment:
     self.sess = tf.Session()
 
     print("Setting up Saver...")
-    self.saver = tf.train.Saver(keep_checkpoint_every_n_hours=1, max_to_keep=10)
+    self.saver = tf.train.Saver(keep_checkpoint_every_n_hours=1, max_to_keep=15)
     self.summary_writer = tf.summary.FileWriter(self.FLAGS.logs_dir, self.sess.graph)
 
     self.sess.run(tf.global_variables_initializer())
