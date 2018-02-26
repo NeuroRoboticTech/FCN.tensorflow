@@ -17,7 +17,7 @@ train_records, valid_records = \
 print(len(train_records))
 
 #Set the next images to be loaded.
-swapRecords(train_records, 0, 96)
+#swapRecords(train_records, 0, 96)
 
 image_options = {'resize': False,
                  'image_height': 500,

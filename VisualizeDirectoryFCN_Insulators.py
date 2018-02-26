@@ -5,7 +5,7 @@ import FCN_env_vars as EnvVars
 
 FLAGS = tf.flags.FLAGS
 tf.flags.DEFINE_integer("batch_size", "1", "batch size for training")
-tf.flags.DEFINE_string("logs_dir", EnvVars.logs_dir + "\\FlashedOnlyZoomedIn", "path to logs directory")
+tf.flags.DEFINE_string("logs_dir", EnvVars.logs_dir + "\\", "path to logs directory")
 tf.flags.DEFINE_string("data_dir", EnvVars.data_dir + "\\Data_Zoo\\Insulators", "path to dataset")
 tf.flags.DEFINE_float("learning_rate", "1e-4", "Learning rate for Adam Optimizer")
 tf.flags.DEFINE_string("model_dir", EnvVars.data_dir + "\\Model_zoo\\", "Path to vgg model mat")

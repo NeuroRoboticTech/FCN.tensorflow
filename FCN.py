@@ -274,7 +274,7 @@ class Segment:
     ckpt = tf.train.get_checkpoint_state(self.FLAGS.logs_dir)
     if ckpt and ckpt.model_checkpoint_path:
       #self.saver.restore(self.sess, ckpt.model_checkpoint_path)
-      self.saver.restore(self.sess, ckpt.all_model_checkpoint_paths[0])
+      self.saver.restore(self.sess, ckpt.all_model_checkpoint_paths[1])
       print("Model restored...")
 
   def train_network(self):

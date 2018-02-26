@@ -110,10 +110,14 @@ class BatchDatset (threading.Thread):
       self.images.clear()
       self.annotations.clear()
 
-      for idx in range(0, len(images)):
-        img_trans, annot_trans =  self.random_transform(images[idx], annotations[idx])
-        self.images.append(img_trans)
-        self.annotations.append(annot_trans)
+      if self.image_options.get("resize", False) and self.image_options["resize"]:
+        self.images.extend(images)
+        self.annotations.extend(annotations)
+      else:
+        for idx in range(0, len(images)):
+          img_trans, annot_trans =  self.random_transform(images[idx], annotations[idx])
+          self.images.append(img_trans)
+          self.annotations.append(annot_trans)
 
       # print (self.images.shape)
       # print (self.annotations.shape)
@@ -132,8 +136,11 @@ class BatchDatset (threading.Thread):
         if self.image_options.get("resize", False) and self.image_options["resize"]:
             resize_height = int(self.image_options["image_height"])
             resize_width = int(self.image_options["image_width"])
-            resize_image = misc.imresize(image,
-                                         [resize_height, resize_width], interp='nearest')
+            if resize_height != image.shape[1] or resize_width != image.shape[0]:
+              resize_image = misc.imresize(image,
+                                           [resize_height, resize_width], interp='nearest')
+            else:
+              resize_image = image
         else:
             resize_image = image
 
